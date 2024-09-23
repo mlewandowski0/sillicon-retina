@@ -1,0 +1,14 @@
+﻿  MAIN_MNIST_SINGLE_LAYER_16.cpp
+E:\PROJS\PhD\scamp\scamp5d_sim\include\vs_vec.hpp(121,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'MAIN_MNIST_SINGLE_LAYER_16.cpp')
+  
+E:\PROJS\PhD\scamp\scamp5d_sim\include\vs_vec.hpp(122,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'MAIN_MNIST_SINGLE_LAYER_16.cpp')
+  
+E:\PROJS\PhD\scamp\scamp5d_sim\include\vs_vec.hpp(123,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'MAIN_MNIST_SINGLE_LAYER_16.cpp')
+  
+E:\PROJS\PhD\scamp\scamp5d_sim\include\vs_vec.hpp(124,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'MAIN_MNIST_SINGLE_LAYER_16.cpp')
+  
+  sim_example.vcxproj -> E:\PROJS\PhD\scamp\scamp5d_sim\sim_example\Debug\sim_example.exe
