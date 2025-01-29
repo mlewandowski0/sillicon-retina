@@ -1,0 +1,14 @@
+﻿  main.cpp
+E:\PROJS\sillicon retina\include\vs_vec.hpp(121,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'main.cpp')
+  
+E:\PROJS\sillicon retina\include\vs_vec.hpp(122,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'main.cpp')
+  
+E:\PROJS\sillicon retina\include\vs_vec.hpp(123,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'main.cpp')
+  
+E:\PROJS\sillicon retina\include\vs_vec.hpp(124,15): warning C4244: '=': conversion from 'const int16_t' to 'uint8_t', possible loss of data
+  (compiling source file 'main.cpp')
+  
+  sim_example.vcxproj -> E:\PROJS\sillicon retina\sim_example\Debug\sim_example.exe
