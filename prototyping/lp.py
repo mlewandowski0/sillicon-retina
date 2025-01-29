@@ -1,6 +1,11 @@
 import numpy as np
 import cv2
 
+
+def scamp_colorscheme(img):
+    return (np.clip(img, -128, 127) + 128).astype(np.uint8)
+
+
 # Initialize variables
 alpha = 0.1  # Smoothing factor for low-pass filter
 filtered_frame = None
@@ -32,22 +37,33 @@ def on_trackbar2(val):
     global alpha2
     alpha2 = val / 100.0  # Convert integer trackbar value to float (0.0 - 1.0)
 
-def on_trackbar2(thresh):
+def on_trackbar_threshold(val):
     global threshold
-    threshold = thresh  # Convert integer trackbar value to float (0.0 - 1.0)
+    threshold = val
+
+def on_trackbar4(val):
+    global alpha4
+    alpha4 = val / 100.0  # Convert integer trackbar value to float (0.0 - 1.0)
+
+def on_trackbar5(val):
+    global alpha5
+    alpha5 = val / 100.0  # Convert integer trackbar value to float (0.0 - 1.0)
+
+def mouse_click(ev):
+    pass
 
 cap = cv2.VideoCapture(0)  # Replace with video path or camera index
 
 # Create a named window
-cv2.namedWindow("Low-Pass Filtered Frame")
-cv2.namedWindow("High-Pass Filtered Frame")
-cv2.namedWindow("events")
-
+cv2.namedWindow("pipeline")
 
 # Add a trackbar for alpha (0 to 100)
-cv2.createTrackbar("Alpha", "Low-Pass Filtered Frame", int(alpha * 100), 100, on_trackbar)
-cv2.createTrackbar("Alpha2", "High-Pass Filtered Frame", int(alpha2 * 100), 100, on_trackbar2)
-cv2.createTrackbar("threshold", "events", threshold, 255, on_trackbar2)
+cv2.createTrackbar("Alpha", "pipeline", int(alpha * 100), 100, on_trackbar)
+cv2.createTrackbar("Alpha2", "pipeline", int(alpha2 * 100), 100, on_trackbar2)
+cv2.createTrackbar("Alpha4", "pipeline", int(alpha4 * 100), 100, on_trackbar4)
+cv2.createTrackbar("Alpha5", "pipeline", int(alpha5 * 100), 100, on_trackbar5)
+cv2.createTrackbar("threshold", "pipeline", threshold, 255, on_trackbar_threshold)
+cv2.createTrackbar("enable blur", "pipeline", 0, 1, mouse_click)
 
 
 while cap.isOpened():
@@ -57,7 +73,9 @@ while cap.isOpened():
 
     # Convert to grayscale for simplicity (optional, can work with color too)
     current_frame = cv2.cvtColor(current_frame, cv2.COLOR_BGR2GRAY)
+    current_frame = cv2.resize(current_frame, (256, 256))
 
+    # apply the first blur
     blurred = cv2.GaussianBlur(current_frame, (3, 3), 0)
 
     # Initialize the low-pass filtered frame with the first frame
@@ -77,12 +95,10 @@ while cap.isOpened():
     filtered_frame2 = alpha2 * filtered_frame2 + (1 - alpha2) * HPF_blurred.astype(np.float32)
 
     # Normalize the high-pass frame for better visualization (optional)
-    high_pass_frame_normalized = cv2.normalize(high_pass_frame, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-
     IML = filtered_frame2 - high_pass_frame
-    
-    # Compute VBip 
-    
+
+
+    # Compute VBip
     if VBip is None:
         VBip = IML.astype(np.float32)
 
@@ -91,8 +107,6 @@ while cap.isOpened():
         
     VBip = alpha3 * VBip + (1 - alpha3) * IML.astype(np.float32)
 
-    if np.isnan(VBip).any():
-        print("Vbip")
 
     VBip_norm = VBip / np.max(VBip)
     Q = G0A + lambda_A * VBip_norm * VBip_norm
@@ -119,19 +133,47 @@ while cap.isOpened():
     if V_mem is None:
         V_mem = I_Gang
 
+
     V_mem = alpha5 * I_Gang + (1 - alpha5) * V_mem
 
 
-    # Display the results
-    cv2.imshow("Original Frame", current_frame)
-    cv2.imshow("Low-Pass Filtered Frame", filtered_frame.astype(np.uint8))
-    cv2.imshow("High-Pass Filtered Frame", high_pass_frame_normalized)
-    cv2.imshow("IML",cv2.normalize(IML, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8))
-    cv2.imshow("alpha3", alpha3)
+    im1 = [scamp_colorscheme(current_frame),
+           scamp_colorscheme(blurred),
+           scamp_colorscheme(filtered_frame),
+           scamp_colorscheme(high_pass_frame),
+           scamp_colorscheme(filtered_frame2),
+           scamp_colorscheme(IML)]
+    im2 = [VBip,
+           alpha3,
+           Q_lpf,
+           HPF,
+           I_Gang,
+           V_mem]
 
-    V_mem_norm = cv2.normalize(V_mem, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    cv2.imshow("V_mem", V_mem_norm)
-    cv2.imshow("events", (255*(V_mem_norm > threshold)).astype(np.uint8))
+    im1 = np.concatenate(im1, axis=1)
+    im2 = np.concatenate(im2, axis=1)
+
+    im1_im2 = np.concatenate([im1, im2], axis=0)
+    cv2.imshow("pipeline", im1)
+    cv2.imshow("pipeline2", im2)
+
+    cv2.imshow("event", (255 * (255* V_mem > threshold)).astype(np.uint8) )
+
+
+    """    
+    cv2.imshow("Original Frame", scamp_colorscheme(current_frame))
+    cv2.imshow("blured", scamp_colorscheme(blurred))
+    cv2.imshow("LPF1", scamp_colorscheme(filtered_frame))
+    cv2.imshow("HPF 1", scamp_colorscheme(high_pass_frame))
+    cv2.imshow("LPF2", scamp_colorscheme(filtered_frame2))
+    cv2.imshow("IML", scamp_colorscheme(IML))
+    cv2.imshow("VBip", scamp_colorscheme(VBip))
+    cv2.imshow("alpha", alpha3)
+    cv2.imshow("Q_lpf", scamp_colorscheme(Q_lpf))
+    cv2.imshow("VBip_HPF", scamp_colorscheme(HPF))
+    cv2.imshow("I_Gang", I_Gang)
+    cv2.imshow("V_mem", scamp_colorscheme(V_mem))
+    """
 
 
     # Exit on 'q' key
