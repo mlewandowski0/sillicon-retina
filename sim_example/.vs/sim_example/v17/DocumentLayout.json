@@ -7,16 +7,7 @@
       "RelativeMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|solutionrelative:main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|E:\\PROJS\\sillicon retina\\sim_example\\OPL2.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|solutionrelative:OPL2.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|E:\\PROJS\\sillicon retina\\sim_example\\old_main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|solutionrelative:old_main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|E:\\PROJS\\sillicon retina\\sim_example\\OPL.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
-      "RelativeMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|solutionrelative:OPL.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+      "AbsoluteMoniker": "D:0:0:{2EBEBF8E-5FFD-469E-A3A8-D0EE6CB227EC}|sim_example.vcxproj|C:\\PROGRAM FILES\\MICROSOFT VISUAL STUDIO\\2022\\COMMUNITY\\VC\\TOOLS\\MSVC\\14.42.34433\\INCLUDE\\FORMAT||{3B902123-F8A7-4915-9F01-361F908088D0}"
     }
   ],
   "DocumentGroupContainers": [
@@ -31,14 +22,13 @@
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "OPL2.cpp",
-              "DocumentMoniker": "E:\\PROJS\\sillicon retina\\sim_example\\OPL2.cpp",
-              "RelativeDocumentMoniker": "OPL2.cpp",
-              "ToolTip": "E:\\PROJS\\sillicon retina\\sim_example\\OPL2.cpp",
-              "RelativeToolTip": "OPL2.cpp",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB8AAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2025-01-28T12:50:20.706Z"
+              "Title": "format",
+              "DocumentMoniker": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.42.34433\\include\\format",
+              "ToolTip": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.42.34433\\include\\format",
+              "ViewState": "AgIAABcAAAAAAAAAAAAlwCkAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-03-17T23:52:41.307Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -48,34 +38,10 @@
               "RelativeDocumentMoniker": "main.cpp",
               "ToolTip": "E:\\PROJS\\sillicon retina\\sim_example\\main.cpp",
               "RelativeToolTip": "main.cpp",
-              "ViewState": "AgIAAHUAAAAAAAAAAAAAAJAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAK4AAAAAAAAAAAAvwL4AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2024-09-13T12:13:22.396Z",
+              "WhenOpened": "2025-03-14T00:31:12.439Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "OPL.cpp",
-              "DocumentMoniker": "E:\\PROJS\\sillicon retina\\sim_example\\OPL.cpp",
-              "RelativeDocumentMoniker": "OPL.cpp",
-              "ToolTip": "E:\\PROJS\\sillicon retina\\sim_example\\OPL.cpp",
-              "RelativeToolTip": "OPL.cpp",
-              "ViewState": "AgIAAJgAAAAAAAAAAAAkwKwAAAACAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2025-01-26T23:31:30.165Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "old_main.cpp",
-              "DocumentMoniker": "E:\\PROJS\\sillicon retina\\sim_example\\old_main.cpp",
-              "RelativeDocumentMoniker": "old_main.cpp",
-              "ToolTip": "E:\\PROJS\\sillicon retina\\sim_example\\old_main.cpp",
-              "RelativeToolTip": "old_main.cpp",
-              "ViewState": "AgIAAGwAAAAAAAAAAAAAAAAAAAACAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
-              "WhenOpened": "2025-01-14T05:56:25.53Z"
             }
           ]
         }
