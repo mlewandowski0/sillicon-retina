@@ -1,0 +1,17 @@
+## SCAMP-5 Vision Chip Simulation Framework (1.2.0.1)
+
+* Version 1.2.0.1
+- Fixed CLR instruction not working correctly.
+
+* Version 1.2.0.0
+- Fixed scamp5_shift and mov2x related bugs.
+- Fixed an issue where SET and CLR of R12 were not masked by R0.
+- Fixed a bug casuing stepping by line sometimes not working properly.
+- Added support for kernel object and scamp5_algorithm.
+
+* Version 1.1.3.1
+- Update error model. 
+
+* Version 1.1.3
+- Fixed flooding related simulation. 
+- Implemented hardware library function updates. 
