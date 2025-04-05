@@ -58,6 +58,7 @@ int run_avg_1 = 0;
 scamp5_algorithm::image_loader *img_loader;
 
 
+// B^{t+1} := B + \alpha * (A - B)
 struct LPF_fixed
 {
 	int no_of_bits_for_alpha = 4;
