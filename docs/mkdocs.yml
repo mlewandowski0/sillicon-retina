@@ -1,0 +1,47 @@
+site_name: Silicon Retina Documentation
+site_description: "Technical documentation, equations, diagrams, and more."
+
+# (Optional) If you have a custom domain or a custom URL:
+# site_url: https://<username>.github.io/<repo-name>/
+
+theme:
+  name: material
+
+# Enable Markdown extensions and plugins
+markdown_extensions:
+  - pymdownx.arithmatex:        # Renders LaTeX-style equations via MathJax
+      generic: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.betterem:          # Improves emphasis parsing
+  - pymdownx.caret:             # Adds support for ^ superscripts
+  - pymdownx.inlinehilite:      # Inline code highlight
+  - pymdownx.keys:              # Keyboard key styling
+  - toc:                        # Table of contents support
+      permalink: true
+  - pymdownx.mark:              # ===mark=== highlights
+  - pymdownx.smartsymbols       # Replaces certain ASCII sequences with symbols
+
+# Enable Mermaid support (Material for MkDocs ships with built-in Mermaid JS)
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex‐mml‐chtml.js
+  - js/mermaid‐config.js    # (we’ll write this next)
+
+extra:
+  mermaid:
+    version: "8.13.5"
+    # (You can pin a specific mermaid version if you want)
+
+# If you want a search box in your docs:
+plugins:
+  - search
+
+# (Optional) If you want more navigation control, list pages here:
+nav:
+  - Home: index.md
+  - Equations & Examples: equations.md
+  - Diagrams: diagrams.md
