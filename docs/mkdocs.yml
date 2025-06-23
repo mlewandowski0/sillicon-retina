@@ -11,25 +11,29 @@ theme:
 markdown_extensions:
   - pymdownx.arithmatex:        # Renders LaTeX-style equations via MathJax
       generic: true
+  - pymdownx.betterem:          # Improves emphasis parsing
+  - pymdownx.caret:             # Adds support for ^ superscripts
+  - pymdownx.inlinehilite:      # Inline code highlight
+  - pymdownx.keys:              # Keyboard key styling
+  - pymdownx.blocks.tab
+  - pymdownx.blocks.admonition
+  - pymdownx.blocks.details
+  - pymdownx.blocks.tab
+  - toc:                        # Table of contents support
+      permalink: true
+  - pymdownx.mark:              # ===mark=== highlights
+  - pymdownx.smartsymbols       # Replaces certain ASCII sequences with symbols
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.betterem:          # Improves emphasis parsing
-  - pymdownx.caret:             # Adds support for ^ superscripts
-  - pymdownx.inlinehilite:      # Inline code highlight
-  - pymdownx.keys:              # Keyboard key styling
-  - toc:                        # Table of contents support
-      permalink: true
-  - pymdownx.mark:              # ===mark=== highlights
-  - pymdownx.smartsymbols       # Replaces certain ASCII sequences with symbols
+
 
 # Enable Mermaid support (Material for MkDocs ships with built-in Mermaid JS)
 extra_javascript:
-  - https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex‐mml‐chtml.js
-  - js/mermaid‐config.js    # (we’ll write this next)
+  - js/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 extra:
   mermaid:
@@ -43,5 +47,6 @@ plugins:
 # (Optional) If you want more navigation control, list pages here:
 nav:
   - Home: index.md
-  - Equations & Examples: equations.md
-  - Diagrams: diagrams.md
+  - Model and SCAMP5 Implementation: model_and_scamp5_impl.md
+  - Creating Artificial Dataset: creating_artificial_dataset.md
+  - Training and Testing: training_and_testing.md
