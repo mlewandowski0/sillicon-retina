@@ -3,6 +3,8 @@ E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api.hpp:102:5:scamp5_kernel::~scamp5_kernel()	24	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda()>; _ArgTypes = {}]	8	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
@@ -12,7 +14,10 @@ E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
 E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda()>; _ArgTypes = {}]	0	static
+E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api.hpp:530:13:void scamp5_kernel_api::WHERE(const dref_t&)	12	static
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api_macro_digital.hpp:220:13:void scamp5_kernel_api::AND(const dreg_t&, const dref_t&, const dref_t&)	56	static
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:65:13:void scamp5_kernel_api::mov(const areg_t&, const aref_t&)	28	static
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:108:13:void scamp5_kernel_api::sub(const areg_t&, const aref_t&, const aref_t&)	36	static
@@ -22,8 +27,9 @@ E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api.hpp:557:13:void scamp5_kernel_api
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:82:13:void scamp5_kernel_api::add(const areg_t&, const aref_t&, const aref_t&)	28	static
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:129:13:void scamp5_kernel_api::abs(const areg_t&, const aref_t&)	48	static
 E:\PROJS\scamp_ws\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:193:13:void scamp5_kernel_api::diva(const areg_t&, const areg_t&, const areg_t&)	56	static
-../src/scamp5_main.cpp:169:19:const void move_the_image_for_F()	48	static
-../src/scamp5_main.cpp:194:6:void apply_lowpass_filter_incoming_A_previous_B_save_to_B(low_pass_filter&)	56	static
-../src/scamp5_main.cpp:218:6:void feedback_loop()	80	static
-../src/scamp5_main.cpp:541:6:void probe_for(int, int)	32	static
-../src/scamp5_main.cpp:587:5:int main()	392	static
+../src/scamp5_main.cpp:185:19:const void move_the_image_for_F()	48	static
+../src/scamp5_main.cpp:210:6:void apply_lowpass_filter_incoming_A_previous_B_save_to_B(low_pass_filter&)	56	static
+../src/scamp5_main.cpp:234:6:void feedback_loop()	80	static
+../src/scamp5_main.cpp:557:6:void probe_for(int, int)	32	static
+../src/scamp5_main.cpp:603:5:int main()	512	static
+../src/scamp5_main.cpp:1139:1:cpp)	8	static

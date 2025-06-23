@@ -6,7 +6,7 @@
  * Generated linker script file for LPC4357-M0
  * Created from library.ldt by FMCreateLinkLibraries
  * Using Freemarker v2.3.30
- * MCUXpresso IDE v24.12 [Build 148] [2025-01-10] on Jun 13, 2025, 9:54:48 PM
+ * MCUXpresso IDE v24.12 [Build 148] [2025-01-10] on Jun 23, 2025, 4:24:00 PM
  */
 
 GROUP (

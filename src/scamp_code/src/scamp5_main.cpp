@@ -49,7 +49,9 @@ using namespace SCAMP5_PE;
 #define DREG_STO3 S3
 
 #define I_OPL_SMALLER_THAN_THRESHOLD S4
-#define N_NEGATIVE S4
+#define N_NEGATIVE 					 S4
+#define FIRING 					     S4
+#define FIRING_AND_IS_PE			 S5
 
 #define VBIP_GREATER_THAN_64 S4
 #define VBIP_GREATER_THAN_32 S5
@@ -73,6 +75,8 @@ using namespace SCAMP5_PE;
 #define BIPOLAR_LPF_REGISTER_STO2 	B
 #define PREV_FRAME_STO2 			C
 #define MEMBRANE_STO2 				D
+
+vs_stopwatch frame_timer;
 
 low_pass_filter LPF1 = {5,
                         0b10000};
@@ -119,6 +123,10 @@ int amplify_opl = 0;
 int amplify_opl_thresh = 5;
 
 int u_rest = -30;
+int U_thresh = 30;
+
+int display_A = 0;
+int display_evn = 0;
 
 
 const inline void load_is_PE_into_S0()
@@ -642,15 +650,24 @@ int main()
 
     vs_gui_add_slider("apply HPF apply_hpf2", 0, 1, apply_2nd_hpf, &apply_2nd_hpf);
 
-    vs_gui_add_slider("apply apply N", 0, 1, apply_N_func, &apply_N_func);
+    vs_gui_add_slider("apply N", 0, 1, apply_N_func, &apply_N_func);
 
     vs_gui_add_slider("amplify_opl", 0, 4, amplify_opl, &amplify_opl);
 
     vs_gui_add_slider("amplify_opl_threshold", 0, 100, amplify_opl_thresh, &amplify_opl_thresh);
 
+    vs_gui_add_slider("compute_LIF", 0, 1, compute_LIF, &compute_LIF);
+
     vs_gui_add_slider("I_bias", -128, 127, I_bias, &I_bias);
 
     vs_gui_add_slider("u_rest", -128, 127, u_rest, &u_rest);
+
+    vs_gui_add_slider("U_thresh", -128, 127, U_thresh, &U_thresh);
+
+    vs_gui_add_slider("display A", 0, 1, display_A, &display_A);
+
+    vs_gui_add_slider("display events", 0, 1, display_evn, &display_evn);
+
 
     vs_gui_add_slider("amplify", 0, 4, amplify_iters, &amplify_iters);
     vs_gui_add_slider("g_{A}^{0", -128, 127, g_A, &g_A);
@@ -709,6 +726,7 @@ int main()
     // Frame Loop
     while (1)
     {
+        frame_timer.reset();//reset frame_timer
         vs_frame_loop_control();
 
         // load the status registers
@@ -958,43 +976,132 @@ int main()
 			scamp5_load_in(F, I_bias);
 
 			scamp5_kernel_begin();
-				add(A, A, F);
+				WHERE(DREG_PE);
+					add(A, A, F);
 			scamp5_kernel_end();
         }
 
         if (compute_LIF)
         {
-        	if (first_pass)
-        	{
-				scamp5_kernel_begin();
+        	scamp5_load_in(F, 0);
+        	scamp5_kernel_begin();
+        		WHERE(DREG_PE);
+        			mov(C, F);
+        	scamp5_kernel_end();
 
-					// transport the membrane state from storage 2 cell
-					WHERE(DREG_STO2);
-						bus(NEWS, MEMBRANE_STO2);
-					WHERE(DREG_PE);
-						bus(B, XS);
-				scamp5_kernel_end();
-        	}
-        	else
+        	// multiply p_{1} * I_gang currently stored in A
+        	int msb = 1 << (p1.no_bits - 1);
+        	while (msb)
         	{
-        		scamp5_load_in(u_rest);
-        		scamp5_kernel_begin();
-        			WHERE(DREG_PE, )
-        		scamp5_kernel_end();
+        		if (msb & p1.value)
+        		{
+        			scamp5_kernel_begin();
+        				add(C, C, A);
+        				diva(A, E, F);
+        			scamp5_kernel_end();
+        		}
+        		else
+        		{
+        			scamp5_kernel_begin();
+        				diva(A, E, F);
+        			scamp5_kernel_end();
+        		}
+        		msb >>= 1;
         	}
 
         	scamp5_kernel_begin();
+        		mov(A, C);
+        	scamp5_kernel_end();
+        	// A holds p_1 * I_gang
 
-        		// move from PE to STORAGE 2
-        			bus(NEWS, C);
+        	// move from the STO2 the membrane voltage
+        	scamp5_kernel_begin();
         		WHERE(DREG_STO2);
-        			bus(MEMBRANE_STO2, XN);
+        			bus(NEWS, MEMBRANE_STO2);
 
         		WHERE(DREG_PE);
+        			bus(B, XS);
         	scamp5_kernel_end();
-        }
 
-        fill_A();
+
+        	// compute the |u(t) - u_rest|
+        	scamp5_load_in(F, u_rest);
+        	scamp5_kernel_begin();
+        			sub(C, B, F);
+					mov(F, C);
+					abs(F, F);
+
+				WHERE(DREG_PE);
+					mov(C, F);
+
+			scamp5_kernel_end();
+
+
+			// compute now p2 * |u(t) - u_rest| to D
+			scamp5_load_in(F, 0);
+			scamp5_kernel_begin();
+				WHERE(DREG_PE);
+					mov(D, F);
+			scamp5_kernel_end();
+
+			// multiply p_{2} * |u(t) - u_rest| currently stored in C
+			msb = 1 << (p2.no_bits - 1);
+			while (msb)
+			{
+			  if (msb & p2.value)
+			  {
+			    scamp5_kernel_begin();
+			       add(D, D, C);
+			       diva(C, E, F);
+			    scamp5_kernel_end();
+			  }
+			  else
+			  {
+			    scamp5_kernel_begin();
+			       diva(C, E, F);
+			    scamp5_kernel_end();
+			  }
+			  msb >>= 1;
+			 }
+
+			// compute now u(t) [stored in B] + p1 * I_gang(t)[stored in A]  - p_2 |u(t) - u_rest| [stored in D]
+
+			scamp5_kernel_begin();
+				// p1 * I_gang(t) + u(t) in A
+				add(A, A, B);
+
+				// p1 * I_gang(t) + u(t) - p_2 |u(t) - u_rest|
+				sub(A, A, D);
+			scamp5_kernel_end();
+
+			// load the threshold value
+			scamp5_load_in(F, U_thresh);
+
+			// threshold the values and subtract the membrane states
+	        scamp5_kernel_begin();
+	        	// is
+	        	WHERE(DREG_PE);
+	        		sub(B, A, F);
+
+	        	where(B);
+	        	MOV(FIRING, FLAG);
+	        	AND(FIRING_AND_IS_PE, FIRING, DREG_PE);
+
+	        	WHERE(FIRING_AND_IS_PE);
+	        		mov(A, B);
+	        scamp5_kernel_end();
+
+
+	        // move the state of membrane back
+			scamp5_kernel_begin();
+				WHERE(DREG_PE);
+					bus(NEWS, A);
+
+				WHERE(DREG_STO2);
+					bus(MEMBRANE_STO2, XN);
+			scamp5_kernel_end();
+
+        }
 
 
 
@@ -1002,14 +1109,30 @@ int main()
 
         if (vs_gui_is_on())
         {
-            scamp5_output_image(A, display_00);
-            //scamp5_output_image(F, display_01);
-            scamp5_output_image(I_OPL_SMALLER_THAN_THRESHOLD, display_10);
-            scamp5_output_image(VBIP_GREATER_THAN_32, display_11);
-            scamp5_output_image(VBIP_GREATER_THAN_16, display_12);
+        	if (display_A)
+        	{
+                fill_A();
+                scamp5_output_image(A, display_00);
+        	}
+        	//scamp5_output_image(F, display_01);
 
-            vs_post_text("(%lu) %s\n", VS_LC, scamp5_verbose_str());
+        	if (display_evn)
+        		scamp5_output_image(FIRING_AND_IS_PE, display_10);
+            //scamp5_output_image(VBIP_GREATER_THAN_32, display_11);
+            //scamp5_output_image(VBIP_GREATER_THAN_16, display_12);
+
+           // vs_post_text("(%lu) %s\n", VS_LC, scamp5_verbose_str());
         }
+
+
+		int frame_time_microseconds = frame_timer.get_usec(); //get the time taken this frame
+
+		vs_post_text("!clear");
+		//calculate the possible max FPS
+		int max_possible_frame_rate = 1000000/frame_time_microseconds;
+		//display this values on host
+		vs_post_text("frame time %d microseconds, potential FPS ~%d \n",frame_time_microseconds,max_possible_frame_rate);
+
     }
 
     return 0;
