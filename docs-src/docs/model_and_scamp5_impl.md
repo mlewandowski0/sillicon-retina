@@ -66,7 +66,7 @@ And then the reset mechanism is implemented.
 This sillicon retina model is too big to implement on the whole
 
 <figure>
-  <img src="/media/png/arch.png" alt="Screenshot of architecture"/>
+  <img src="arch.png" alt="Screenshot of architecture"/>
   <figcaption> Partitioning of the sillicon retina on SCAMP5. The Sillicon Retina model requires quite a bit of memory, storing values from low pass and high pass filters. This is problematic on SCAMP5, therefore a grid of 256x256 is split into a 2 by 2 cells, reducing the resolution to 128x128, however allowing for much more memory. </figcaption>
 </figure>
 
