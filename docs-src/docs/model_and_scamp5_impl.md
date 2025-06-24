@@ -14,7 +14,7 @@ The first stage is generating the current coming from Outer Plexiform Layer (OPL
 \end{align}
 \]
 
-- Where any filter \( G\_{C} \) represents a kernel corresponding to gaussian blur, \( E \) corresponds to temporal low pass filter and \( T \) represents temporal high pass filter.
+- Where any filter \( G_{C} \) represents a kernel corresponding to gaussian blur, \( E \) corresponds to temporal low pass filter and \( T \) represents temporal high pass filter.
 - The blur kernels \( G \) represents the gap junctions between the neurons. In the outer plexiform layer, photoreceptors and horizontals cells are linked through these junctions. Horizontal cells, have broader receptive fields (larger kernels) while the photoreceptors have smaller receptive fields (small kernel).
 - The neuron responses are approximated by temporal filters. The temporal low-pass filters starts at photoreceptor (eq \( \ref{blur1} \)) and the delays formed by neurons (neurotransmitter release, diffusion ) are captured by the Low Pass Filters. The photoreceptors respond to light but are slow. The low pass filtering helps us to capture that behaviour.
 - HPF occurs due to bipolar + amacrine cells. They are senstivie to temporal constrast and pass only new changes.
@@ -156,19 +156,21 @@ y_i = \alpha y_{i-1} + \alpha (x_{i} - x_{i-1})
 however in practice this didn't work so well. In the current version of the model the following equation is implemented :
 
 \[
-y_{i} = x_{i} - y_{i-1}
+y_{i} = x_{i} - x_{i-1}
 \]
 
 ### Outer Plexiform Layer
 
-The equation for Outer Plexiform Layer \( \ref{Iopl} \) is computed as below:
+The equation for Outer Plexiform Layer ( Equation \( \ref{Iopl} \)) is computed as below:
 
 \[
 I_{opl} = \lambda_{OPL} (HPF_1 - LPF_2)  
 \]
 
-where \( \lambda_{OPL} \) should amplify the signal bit. This simple "fake" amplification is used, which will enhance the noise, however will make the numbers bigger :
+where \( \lambda_{OPL} \) should amplify the signal bit. One simple assumption to make is that because we want to amplify signal, we can very easily multiply the signal by 2s 
+just by executing ```ADD R1, R1, R1``` (to multiply for 4 we should execute this twice, for 8 execute thrice etc.). To avoid amplifying noise and small signals, we can measure the strength of the signal by taking the absolute value, and if the values are small (smaller then certain threshold), after repeatedly adding, we will zero them out (take absolute value, load threshold, compare to threshold, store the comparison in some DREG (for example S0), execute 'multiplication', for values stored in S0, set them to 0).
 
+ This simple "fake" amplification is used, which will enhance the noise, however will make the numbers bigger :
 ```C++
 if (amplify_opl > 0)
 {
@@ -226,6 +228,7 @@ The differential equation for bipolar cell voltage is solved using euler method 
 \begin{align}
   & V_{bip}[n+1] \approx V_{bip}[n] + \frac{h}{C} (I_{OPL} - g_{A} V_{bip}) = \\[2ex]
   &= V_{bip}[n] + p_1 (I_{OPL} - g_{A} V_{bip}) \\[2ex]
+  &=  
 \end{align}
 \]
 
@@ -248,7 +251,8 @@ The leaky integrate and fire neurons are implemented as following :
 \[
   \begin{align}
     V_{LIF}[n+1] &= V_{LIF}[n] + \frac{h}{\tau}(I_{gang} R - |V_{lif}[n] - V_{rest}|) = \\
-    &= V_{LIF}[n] + p_{1} (p_{2} I_{gang} - |V_{lif}[n] - V_{rest}|)
+    &= V_{LIF}[n] + p_{2} (p_{3} I_{gang} - |V_{lif}[n] - V_{rest}|) \\ 
+    &= V_{LIF}[n] + p_{2}' I_{gang} - p_{3}' |V_{lif} - V_{rest}|
   \end{align}
 \]
 
