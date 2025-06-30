@@ -1,0 +1,731 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Technical documentation, equations, diagrams, and more.">
+      
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../creating_artificial_dataset/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.14">
+    
+    
+      
+        <title>Model and SCAMP5 Implementation - Silicon Retina Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.342714a4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sillicon-retina-model" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Silicon Retina Documentation" class="md-header__button md-logo" aria-label="Silicon Retina Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Silicon Retina Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Model and SCAMP5 Implementation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Silicon Retina Documentation" class="md-nav__button md-logo" aria-label="Silicon Retina Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Silicon Retina Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    Model and SCAMP5 Implementation
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    Model and SCAMP5 Implementation
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stage 1
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stage 2
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stage 3
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../creating_artificial_dataset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Creating Artificial Dataset
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training_and_testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Training and Testing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stage 1
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stage 2
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      Stage 3
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="sillicon-retina-model">Sillicon Retina Model<a class="headerlink" href="#sillicon-retina-model" title="Permanent link">&para;</a></h1>
+<h2 id="stage-1">Stage 1<a class="headerlink" href="#stage-1" title="Permanent link">&para;</a></h2>
+<p>The first stage is generating the current coming from Outer Plexiform Layer (OPL), which can modeled as [1] :</p>
+<div class="arithmatex">\[
+\begin{align}
+\label{blur1} Blurred_1 &amp;:= G_{1} * L \\[2ex]
+\label{LPF1} LPF_1 &amp;:= E_{1} * Blurred_1 \\[2ex]
+\label{HPF1} HPF_1 &amp;:= T_{1} * LPF_{1} \\[2ex]
+\label{blur2} Blurred_2 &amp;:= G_{2} * HPF_{1} \\[2ex]
+\label{LPF2} LPF_2 &amp;:= E_{2} * Blurred_{2} \\[2ex]
+\label{Iopl} I_{OPL} &amp;:= \lambda_{OPL} \left( HPF_1 - \omega_{OPL} LPF_2 \right)
+\end{align}
+\]</div>
+<ul>
+<li>Where any filter <span class="arithmatex">\( G_{C} \)</span> represents a kernel corresponding to gaussian blur, <span class="arithmatex">\( E \)</span> corresponds to temporal low pass filter and <span class="arithmatex">\( T \)</span> represents temporal high pass filter.</li>
+<li>The blur kernels <span class="arithmatex">\( G \)</span> represents the gap junctions between the neurons. In the outer plexiform layer, photoreceptors and horizontals cells are linked through these junctions. Horizontal cells, have broader receptive fields (larger kernels) while the photoreceptors have smaller receptive fields (small kernel).</li>
+<li>The neuron responses are approximated by temporal filters. The temporal low-pass filters starts at photoreceptor (eq <span class="arithmatex">\( \ref{blur1} \)</span>) and the delays formed by neurons (neurotransmitter release, diffusion ) are captured by the Low Pass Filters. The photoreceptors respond to light but are slow. The low pass filtering helps us to capture that behaviour.</li>
+<li>HPF occurs due to bipolar + amacrine cells. They are senstivie to temporal constrast and pass only new changes.</li>
+<li>Outer Plexiform Layer was modeled to have a bandpass reponse, using a Difference of Gaussians (DoG) and Difference of Expoential (DoE) filters [1].</li>
+</ul>
+<h2 id="stage-2">Stage 2<a class="headerlink" href="#stage-2" title="Permanent link">&para;</a></h2>
+<p>In the next stage we compute the Contrast Adaptation, which is due to some of the cells (certain bipolar, amacrine and all ganglion cells [2]). This was done as below [1] :</p>
+<div class="arithmatex">\[
+\begin{align}
+\label{Bipcells} C \frac{dV_{bip}}{dt} &amp;:= I_{OPL} - g_{A} V_{bip} \\[2ex]
+\label{contrastgain} g_{A} &amp;:= G_{3} * E_{3} * Q(V_{bip}) \\[2ex]
+\label{Qfunc} Q(V_{bip}) &amp;:= G_{A}^{0} + \lambda_{A} V_{bip}^2
+\end{align}
+\]</div>
+<ul>
+<li>the equation <span class="arithmatex">\( \ref{Bipcells} \)</span> models just a leaky integrate neurons (or low pass filtering), with a "varied" resistance</li>
+<li>Appling filters <span class="arithmatex">\( G*{3} \)</span> and <span class="arithmatex">\( E*{3} \)</span> represents both temporal and spatial smoothing of amacrine cells</li>
+<li>the Q function is a nonlinear control function, representing the strength of the feedback loop.</li>
+</ul>
+<h2 id="stage-3">Stage 3<a class="headerlink" href="#stage-3" title="Permanent link">&para;</a></h2>
+<ul>
+<li>the last stage models the spiking behaviour of the retina. It sends the information from the photoreceptor, horizontal, bipolar, amacrine cells (non-spiking) to a model of ganglion cells, which will produce the spikes.</li>
+</ul>
+<div class="arithmatex">\[
+\begin{align}
+\label{HPF2} HPF_{2} &amp;:= T_{2} * V_{bip} \\[2ex]
+\label{Igang} I_{gang} &amp;:= N(HPF_{2}) \\[2ex]
+\label{Vlif} \tau_{m} \frac{dV_{LIF}}{dt} &amp;:= - |V_{LIF} - V_{rest}| + R I_{gang}
+\end{align}
+\]</div>
+<p>The <span class="arithmatex">\( V\_{LIF} \)</span> is a membrane of the leaky integrate fire neuron, after which we can can threshold it with some <span class="arithmatex">\( \theta \)</span> and do firing.</p>
+<div class="arithmatex">\[
+OUT:=\begin{cases}
+1, &amp; \text{if } V\_{LIF} &gt;= \theta \\
+0, &amp; \text{otherwise}
+\end{cases}
+\]</div>
+<p>And then the reset mechanism is implemented.</p>
+<h1 id="scamp5-implementation">SCAMP5 Implementation<a class="headerlink" href="#scamp5-implementation" title="Permanent link">&para;</a></h1>
+<h2 id="high-level-overview">High level overview<a class="headerlink" href="#high-level-overview" title="Permanent link">&para;</a></h2>
+<p>This sillicon retina model is too big to implement on the whole</p>
+<figure>
+  <img src="arch.png" alt="Screenshot of architecture"/>
+  <figcaption> Partitioning of the sillicon retina on SCAMP5. The Sillicon Retina model requires quite a bit of memory, storing values from low pass and high pass filters. This is problematic on SCAMP5, therefore a grid of 256x256 is split into a 2 by 2 cells, reducing the resolution to 128x128, however allowing for much more memory. </figcaption>
+</figure>
+
+<h2 id="mapping-the-equations-on-scamp">Mapping the equations on SCAMP<a class="headerlink" href="#mapping-the-equations-on-scamp" title="Permanent link">&para;</a></h2>
+<h3 id="blur">Blur<a class="headerlink" href="#blur" title="Permanent link">&para;</a></h3>
+<p>Blur (equations <span class="arithmatex">\( \ref{blur1}, \ref{blur2}, \ref{contrastgain} \)</span>): for a value, for example stored in PROC.A, we copy it to STO1.A, STO2.A and STO3.A. after that we can simply apply <code>gauss(A, A, ITERATIONS)</code></p>
+<h3 id="low-pass-filters">Low Pass Filters<a class="headerlink" href="#low-pass-filters" title="Permanent link">&para;</a></h3>
+<p>Low Pass Filters (equations <span class="arithmatex">\( \ref{LPF1}, \ref{LPF2}, \ref{contrastgain} \)</span>) : this is implemented as exponential smoothing from 2 reasons : it's very simple and possible to implement on SCAMP, and has very simillar form as leaky integrate and fire equation. This uses the following equation :</p>
+<div class="arithmatex">\[
+\begin{align}
+V_{0} &amp;= I_{0} \\
+V_{n} &amp;= V_{n-1} + \alpha(I_{n} - V_{n-1})
+\end{align}
+\]</div>
+<p><span class="arithmatex">\( \alpha \)</span> should be a value from [0, 1] and controls how fast or not we want to interpolate inbetween the frames. This computation (and other multiplications by a fixed value can be represented by the C code below). To unify this with other multiplication by constant later, the LPF is specified firstly by number of bits <span class="arithmatex">\( N \)</span>, and then then the value of actual filter is specified in fixed point format <span class="arithmatex">\( b_{1}.b_{2}b_{3}...b_{N} \)</span>.</p>
+<div class="highlight"><pre><span></span><code><span class="k">struct</span><span class="w"> </span><span class="nc">fixed_point_mult</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">no_bits</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="c1">// here 5 bits represent</span>
+<span class="n">fixed_point_mult</span><span class="w"> </span><span class="n">LPF1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">5</span><span class="p">,</span>
+<span class="w">                        </span><span class="mb">0b01000</span><span class="p">};</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">apply_LPF_with_I_in_A_V_in_B</span><span class="p">(</span><span class="n">fixed_point_mult</span><span class="w"> </span><span class="o">&amp;</span><span class="n">lpf</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="c1">// incoming value of I_{n} is in A</span>
+<span class="w">    </span><span class="c1">// previous map of V_{n-1} is in B</span>
+<span class="w">    </span><span class="c1">// store the delta of I_{n} - V_{n-1} in C</span>
+
+<span class="w">    </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">      </span><span class="n">WHERE</span><span class="p">(</span><span class="n">IS_PROC</span><span class="p">);</span>
+<span class="w">        </span><span class="n">sub</span><span class="p">(</span><span class="n">C</span><span class="p">,</span><span class="w"> </span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">);</span>
+<span class="w">    </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+
+
+<span class="w">    </span><span class="kt">bool</span><span class="w"> </span><span class="n">first_msb</span><span class="o">=</span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">msb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">lpf</span><span class="p">.</span><span class="n">no_bits</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span>
+
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">msb</span><span class="p">)</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="c1">// the first bit for LPF should always be 0. we can detect this</span>
+<span class="w">      </span><span class="c1">// but it isn&#39;t necessary (if we assume the values provided will be correct)</span>
+<span class="w">      </span><span class="cm">/*</span>
+<span class="cm">      if (first_msb)</span>
+<span class="cm">      {</span>
+<span class="cm">        first_msb = false;</span>
+<span class="cm">        continue;</span>
+<span class="cm">      }</span>
+<span class="cm">      */</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">msb</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">lpf</span><span class="p">.</span><span class="n">value</span><span class="p">)</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">           </span><span class="n">add</span><span class="p">(</span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">C</span><span class="p">);</span>
+<span class="w">           </span><span class="n">diva</span><span class="p">(</span><span class="n">C</span><span class="p">,</span><span class="w"> </span><span class="n">E</span><span class="p">,</span><span class="w"> </span><span class="n">F</span><span class="p">);</span>
+<span class="w">        </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="k">else</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">          </span><span class="n">diva</span><span class="p">(</span><span class="n">C</span><span class="p">,</span><span class="w"> </span><span class="n">E</span><span class="p">,</span><span class="w"> </span><span class="n">F</span><span class="p">);</span>
+<span class="w">        </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">msb</span><span class="w"> </span><span class="o">&gt;&gt;=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="c1">// the result is now stored in B</span>
+<span class="p">}</span>
+</code></pre></div>
+<h3 id="high-pass-filters">High Pass Filters<a class="headerlink" href="#high-pass-filters" title="Permanent link">&para;</a></h3>
+<p>simple high pass filter (RC filter) can be implemented as the equation below</p>
+<div class="arithmatex">\[
+y_i = \alpha y_{i-1} + \alpha (x_{i} - x_{i-1})
+\]</div>
+<p>however in practice this didn't work so well. In the current version of the model the following equation is implemented :</p>
+<div class="arithmatex">\[
+y_{i} = x_{i} - x_{i-1}
+\]</div>
+<h3 id="outer-plexiform-layer">Outer Plexiform Layer<a class="headerlink" href="#outer-plexiform-layer" title="Permanent link">&para;</a></h3>
+<p>The equation for Outer Plexiform Layer ( Equation <span class="arithmatex">\( \ref{Iopl} \)</span>) is computed as below:</p>
+<div class="arithmatex">\[
+I_{opl} = \lambda_{OPL} (HPF_1 - LPF_2)  
+\]</div>
+<p>where <span class="arithmatex">\( \lambda_{OPL} \)</span> should amplify the signal bit. One simple assumption to make is that because we want to amplify signal, we can very easily multiply the signal by 2s 
+just by executing <code>ADD R1, R1, R1</code> (to multiply for 4 we should execute this twice, for 8 execute thrice etc.). To avoid amplifying noise and small signals, we can measure the strength of the signal by taking the absolute value, and if the values are small (smaller then certain threshold), after repeatedly adding, we will zero them out (take absolute value, load threshold, compare to threshold, store the comparison in some DREG (for example S0), execute 'multiplication', for values stored in S0, set them to 0).</p>
+<p>This simple "fake" amplification is used, which will enhance the noise, however will make the numbers bigger :
+<div class="highlight"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">amplify_opl</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="c1">// take the absolute value of A and save it in F</span>
+<span class="w">    </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">        </span><span class="n">abs</span><span class="p">(</span><span class="n">F</span><span class="p">,</span><span class="w"> </span><span class="n">A</span><span class="p">);</span>
+<span class="w">    </span><span class="n">WHERE</span><span class="p">(</span><span class="n">DREG_PE</span><span class="p">);</span>
+<span class="w">      </span><span class="n">mov</span><span class="p">(</span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">F</span><span class="p">);</span>
+<span class="w">  </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+
+<span class="w">  </span><span class="c1">// load the value of threshold into F</span>
+<span class="w">  </span><span class="n">scamp5_load_in</span><span class="p">(</span><span class="n">F</span><span class="p">,</span><span class="w"> </span><span class="n">amplify_opl_thresh</span><span class="p">);</span>
+
+<span class="w">  </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">    </span><span class="n">WHERE</span><span class="p">(</span><span class="n">DREG_PE</span><span class="p">);</span>
+<span class="w">      </span><span class="n">sub</span><span class="p">(</span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">B</span><span class="p">,</span><span class="w"> </span><span class="n">F</span><span class="p">);</span>
+
+<span class="w">      </span><span class="c1">// store in I_OPL_SMALLER_THAN_THRESHOLD the values for which the A is smaller then threshold and is part of PE</span>
+<span class="w">    </span><span class="n">where</span><span class="p">(</span><span class="n">B</span><span class="p">);</span>
+<span class="w">    </span><span class="n">NOT</span><span class="p">(</span><span class="n">I_OPL_SMALLER_THAN_THRESHOLD</span><span class="p">,</span><span class="w"> </span><span class="n">FLAG</span><span class="p">);</span>
+<span class="w">    </span><span class="n">AND</span><span class="p">(</span><span class="n">I_OPL_SMALLER_THAN_THRESHOLD</span><span class="p">,</span><span class="w"> </span><span class="n">I_OPL_SMALLER_THAN_THRESHOLD</span><span class="p">,</span><span class="w"> </span><span class="n">DREG_PE</span><span class="p">);</span>
+
+<span class="w">    </span><span class="n">WHERE</span><span class="p">(</span><span class="n">DREG_PE</span><span class="p">);</span>
+<span class="w">  </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">amplify_opl</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span>
+<span class="w">  </span><span class="p">{</span>
+<span class="w">    </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">      </span><span class="n">mov</span><span class="p">(</span><span class="n">F</span><span class="p">,</span><span class="w"> </span><span class="n">A</span><span class="p">);</span>
+<span class="w">      </span><span class="n">add</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">F</span><span class="p">);</span>
+<span class="w">    </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">scamp5_load_in</span><span class="p">(</span><span class="n">F</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">);</span>
+
+<span class="w">  </span><span class="c1">// zero out the values that were small in the beginning</span>
+<span class="w">  </span><span class="n">scamp5_kernel_begin</span><span class="p">();</span>
+<span class="w">    </span><span class="n">WHERE</span><span class="p">(</span><span class="n">I_OPL_SMALLER_THAN_THRESHOLD</span><span class="p">);</span>
+<span class="w">      </span><span class="n">mov</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="w"> </span><span class="n">F</span><span class="p">);</span>
+<span class="w">  </span><span class="n">scamp5_kernel_end</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div></p>
+<h3 id="contrast-adaptation">Contrast Adaptation<a class="headerlink" href="#contrast-adaptation" title="Permanent link">&para;</a></h3>
+<p>The Stage 2 is quite complex and very sensitive. The values of <span class="arithmatex">\( I_{OPL} \)</span> are not large and if some of the fake amplification is done, there is going to be tons of noise
+Firstly, <span class="arithmatex">\( Q \)</span> function is approximated as : </p>
+<div class="arithmatex">\[
+    Q(V_{bip}) G_{A}^{0} + \lambda_{A} V_{bip}^{2} \approx G_{A}^{0} + \lambda_{A}^{*} |V_{bip}|
+\]</div>
+<p>The differential equation for bipolar cell voltage is solved using euler method (it is likely, this is the only way to solve it on current SCAMP5 system). This becomes</p>
+<div class="arithmatex">\[
+\begin{align}
+  &amp; V_{bip}[n+1] \approx V_{bip}[n] + \frac{h}{C} (I_{OPL} - g_{A} V_{bip}) = \\[2ex]
+  &amp;= V_{bip}[n] + p_1 (I_{OPL} - g_{A} V_{bip}) \\[2ex]
+  &amp;=  
+\end{align}
+\]</div>
+<p>implementing of the multiplication of <span class="arithmatex">\( p_1 \)</span> is fairly straightforward using the previously developed procedure for low pass filters. multiplication of <span class="arithmatex">\( g_{A} V_{bip} \)</span> is more difficult because it is, per element multiplication (not a single scalar value). This computation is done by computing g_{A} in analog domain, and then digitizing the values, and storing the 3 MSBs in the DREG. With these 3 bits, we can quite easily modify the multiplication by fixed point value procedure, however there, instead of using the struct value, we use the WHERE(DREG_CURRENT_BIT) and make that operation. </p>
+<h3 id="ganglion-current-function">Ganglion Current function<a class="headerlink" href="#ganglion-current-function" title="Permanent link">&para;</a></h3>
+<p>Ganglion Current function is quite complex and was skipped so far. In the current implementation it is approximated as :</p>
+<div class="arithmatex">\[
+  N(X) = max(X, 0) + I_{Bias}
+\]</div>
+<h3 id="leaky-integrate-and-fire-neurons">Leaky Integrate and Fire Neurons<a class="headerlink" href="#leaky-integrate-and-fire-neurons" title="Permanent link">&para;</a></h3>
+<p>The leaky integrate and fire neurons are implemented as following : </p>
+<div class="arithmatex">\[
+  \begin{align}
+    V_{LIF}[n+1] &amp;= V_{LIF}[n] + \frac{h}{\tau}(I_{gang} R - |V_{lif}[n] - V_{rest}|) = \\
+    &amp;= V_{LIF}[n] + p_{2} (p_{3} I_{gang} - |V_{lif}[n] - V_{rest}|) \\ 
+    &amp;= V_{LIF}[n] + p_{2}' I_{gang} - p_{3}' |V_{lif} - V_{rest}|
+  \end{align}
+\]</div>
+<p>Here, the <span class="arithmatex">\( p_1, p_2 \)</span> are again fixed point parameters, and we can reuse the already existing code for "fixed point multiplication", showed before.</p>
+<h2 id="sillicon-model-on-scamp-computation-flow">Sillicon Model on Scamp : Computation Flow<a class="headerlink" href="#sillicon-model-on-scamp-computation-flow" title="Permanent link">&para;</a></h2>
+<p>Below is a high‐level flow of the data processing stages:</p>
+<pre class="mermaid"><code>flowchart TD
+    A[Image] 
+
+    subgraph Stage1Details [Stage 1: Outer Plexiform Layer]
+        B1[BLUR] --&gt;  B2[LPF1]
+        B2[LPF1] --&gt; B3[HPF1]
+        B3[HPF1] --&gt; B4[BLUR 2]
+        B4[BLUR 2] --&gt; B5[LPF 2]
+        B5[LPF 2] --&gt; B6[Iopl]
+        B3[HPF1] --&gt; B6[Iopl]
+
+    end
+
+    subgraph Stage2Details [Stage 2: contrast adaptation]
+        C1[LPF 1]
+        C2[HPF 1]
+        C3[Blur 2]
+        C1 --&gt; C2 --&gt; C3
+    end
+
+    subgraph Stage3Details [Stage 3: Ganglion cells]
+        D1[LPF 1]
+        D2[HPF 1]
+        D3[Blur 2]
+        D1 --&gt; D2 --&gt; D3
+    end
+
+    A --&gt; Stage1Details
+    Stage1Details --&gt; Stage2Details
+    Stage2Details --&gt; Stage3Details
+    Stage3Details --&gt; E[Binary Output]
+</code></pre>
+<h1 id="references">references<a class="headerlink" href="#references" title="Permanent link">&para;</a></h1>
+<ul>
+<li>[1] Neuromorphic Retina: An FPGA-based Emulator</li>
+<li>[2] Fast and Slow Contrast Adaptation in Retinal Circuitry</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.d50fe291.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
+      
+        <script src="../js/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

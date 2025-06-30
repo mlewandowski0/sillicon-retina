@@ -1,5 +1,6 @@
 site_name: Silicon Retina Documentation
 site_description: "Technical documentation, equations, diagrams, and more."
+site_dir: ../docs
 
 # (Optional) If you have a custom domain or a custom URL:
 # site_url: https://<username>.github.io/<repo-name>/

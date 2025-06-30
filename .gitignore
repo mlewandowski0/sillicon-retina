@@ -4,3 +4,4 @@ src/neural_network/reconstruction/ecoco_depthmaps_test
 src/neural_network/reconstruction/caltech101
 src/neural_network/reconstruction/N-Caltech101
 sillicon-retina-env
+src/sillicon_retina_python_simulation/datasets/*
