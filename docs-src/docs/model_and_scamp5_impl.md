@@ -219,16 +219,15 @@ The Stage 2 is quite complex and very sensitive. The values of \( I_{OPL} \) are
 Firstly, \( Q \) function is approximated as : 
 
 \[
-    Q(V_{bip}) G_{A}^{0} + \lambda_{A} V_{bip}^{2} \approx G_{A}^{0} + \lambda_{A}^{*} |V_{bip}|
+    Q(V_{bip}) = G_{A}^{0} + \lambda_{A} V_{bip}^{2} \approx G_{A}^{0} + \lambda_{A}^{*} |V_{bip}|
 \]
 
 The differential equation for bipolar cell voltage is solved using euler method (it is likely, this is the only way to solve it on current SCAMP5 system). This becomes
 
 \[
 \begin{align}
-  & V_{bip}[n+1] \approx V_{bip}[n] + \frac{h}{C} (I_{OPL} - g_{A} V_{bip}) = \\[2ex]
-  &= V_{bip}[n] + p_1 (I_{OPL} - g_{A} V_{bip}) \\[2ex]
-  &=  
+  & V_{bip}[n+1] \approx V_{bip}[n] + \frac{h}{C} (I_{OPL} - g_{A} V_{bip}[n]) = \\[2ex]
+  &= V_{bip}[n] + p_1 (I_{OPL} - g_{A} V_{bip}[n]) \\[2ex]
 \end{align}
 \]
 
