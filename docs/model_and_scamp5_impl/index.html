@@ -604,14 +604,13 @@ just by executing <code>ADD R1, R1, R1</code> (to multiply for 4 we should execu
 <p>The Stage 2 is quite complex and very sensitive. The values of <span class="arithmatex">\( I_{OPL} \)</span> are not large and if some of the fake amplification is done, there is going to be tons of noise
 Firstly, <span class="arithmatex">\( Q \)</span> function is approximated as : </p>
 <div class="arithmatex">\[
-    Q(V_{bip}) G_{A}^{0} + \lambda_{A} V_{bip}^{2} \approx G_{A}^{0} + \lambda_{A}^{*} |V_{bip}|
+    Q(V_{bip}) = G_{A}^{0} + \lambda_{A} V_{bip}^{2} \approx G_{A}^{0} + \lambda_{A}^{*} |V_{bip}|
 \]</div>
 <p>The differential equation for bipolar cell voltage is solved using euler method (it is likely, this is the only way to solve it on current SCAMP5 system). This becomes</p>
 <div class="arithmatex">\[
 \begin{align}
-  &amp; V_{bip}[n+1] \approx V_{bip}[n] + \frac{h}{C} (I_{OPL} - g_{A} V_{bip}) = \\[2ex]
-  &amp;= V_{bip}[n] + p_1 (I_{OPL} - g_{A} V_{bip}) \\[2ex]
-  &amp;=  
+  &amp; V_{bip}[n+1] \approx V_{bip}[n] + \frac{h}{C} (I_{OPL} - g_{A} V_{bip}[n]) = \\[2ex]
+  &amp;= V_{bip}[n] + p_1 (I_{OPL} - g_{A} V_{bip}[n]) \\[2ex]
 \end{align}
 \]</div>
 <p>implementing of the multiplication of <span class="arithmatex">\( p_1 \)</span> is fairly straightforward using the previously developed procedure for low pass filters. multiplication of <span class="arithmatex">\( g_{A} V_{bip} \)</span> is more difficult because it is, per element multiplication (not a single scalar value). This computation is done by computing g_{A} in analog domain, and then digitizing the values, and storing the 3 MSBs in the DREG. With these 3 bits, we can quite easily modify the multiplication by fixed point value procedure, however there, instead of using the struct value, we use the WHERE(DREG_CURRENT_BIT) and make that operation. </p>
@@ -630,6 +629,12 @@ Firstly, <span class="arithmatex">\( Q \)</span> function is approximated as : <
   \end{align}
 \]</div>
 <p>Here, the <span class="arithmatex">\( p_1, p_2 \)</span> are again fixed point parameters, and we can reuse the already existing code for "fixed point multiplication", showed before.</p>
+<h2 id="silicon-model-digital-simulation">Silicon Model digital simulation<a class="headerlink" href="#silicon-model-digital-simulation" title="Permanent link">&para;</a></h2>
+<p>Below are the all layers for poor set of parameters for silicon retina </p>
+<video controls preload="metadata" style="width:100%">
+  <source src="output_poor_parameters_h264.mp4"  type="video/mp4">
+</video>
+
 <h2 id="sillicon-model-on-scamp-computation-flow">Sillicon Model on Scamp : Computation Flow<a class="headerlink" href="#sillicon-model-on-scamp-computation-flow" title="Permanent link">&para;</a></h2>
 <p>Below is a high‐level flow of the data processing stages:</p>
 <pre class="mermaid"><code>flowchart TD

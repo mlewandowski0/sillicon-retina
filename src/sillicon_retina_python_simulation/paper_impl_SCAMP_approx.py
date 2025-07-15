@@ -24,6 +24,8 @@ map_contrast = None
 Vm = None
 map5 = None
 
+event_prev = None
+event_thresh = 20
 
 total_bits = 5
 frac_bits = 4
@@ -145,7 +147,7 @@ def scamp5_quantize(alpha, bits):
 
 def main():
     global map2, V_bip, map_contrast, out, fps, pad, I_bias, Vm, p1, p2, V_rest, threshold, sub
-    global E_tauC, E_tauS, map5
+    global E_tauC, E_tauS, map5, event_prev
     parser = argparse.ArgumentParser()
     parser.add_argument('--live', action="store_true", help='live video feed from webcam')
     parser.add_argument("--path", type=str, default="", help="")
@@ -252,6 +254,22 @@ def main():
 
 
 
+            event_map = np.zeros(input_img.shape + (3, ))
+
+            if event_prev is None:
+                event_prev = input_img.copy()
+            else:
+                diff = input_img - event_prev
+
+                pos_mask = diff > event_thresh
+                event_map[pos_mask] = [255, 0, 0]  # red
+
+                neg_mask = diff < -event_thresh
+                event_map[neg_mask] = [0, 0, 255]  # blue
+
+                change_mask = np.abs(diff) > event_thresh
+                event_prev[change_mask] = input_img[change_mask]
+
 
             stage1 = concatenate_images_with_labels([input_img, G_C, E_tauC, T_wr, G_s, E_tauS, I_opl],
                                                    ["Input", "G_C", "E_tauC", "T_wr", "G_s", "E_tauS", "I_opl"])
@@ -259,8 +277,8 @@ def main():
             stage2 = concatenate_images_with_labels([Q, map_contrast, g_A, V_bip, pad, pad, pad],
                                                     ["Q", "map_contrast", "g_A", "V_bip", "", "", ""])
 
-            stage3 = concatenate_images_with_labels([map5, hpf_out, Igang, Vm, 127*events, pad, pad],
-                                                    labels=["hpf_map", "hpf_out", "I_gang", "Vm", "events", "", ""])
+            stage3 = concatenate_images_with_labels([map5, hpf_out, Igang, Vm, 127*events, pad, event_map],
+                                                    labels=["hpf_map", "hpf_out", "I_gang", "Vm", "events", "", "event_map"])
 
             final = np.concatenate((stage1, stage2, stage3), axis=0)
 

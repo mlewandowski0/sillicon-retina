@@ -258,6 +258,14 @@ The leaky integrate and fire neurons are implemented as following :
 Here, the \( p_1, p_2 \) are again fixed point parameters, and we can reuse the already existing code for "fixed point multiplication", showed before.
 
 
+## Silicon Model digital simulation 
+Below are the all layers for poor set of parameters for silicon retina 
+
+<video controls preload="metadata" style="width:100%">
+  <source src="output_poor_parameters_h264.mp4"  type="video/mp4">
+</video>
+
+
 ## Sillicon Model on Scamp : Computation Flow
 
 Below is a high‐level flow of the data processing stages:

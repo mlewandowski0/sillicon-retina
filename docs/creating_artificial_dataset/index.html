@@ -322,6 +322,18 @@
 
 
 <h1 id="low-framerate-to-high-framerate-video-generation">low-framerate to high-framerate video generation<a class="headerlink" href="#low-framerate-to-high-framerate-video-generation" title="Permanent link">&para;</a></h1>
+<p>Temporal upsampling of videos is done using a paper developed by Fitsum Reda et al (<a href="https://arxiv.org/abs/2202.04901">FILM: Frame Interpolation for Large Motion
+</a>). The training and inference code was adapted from this and <a href="https://arxiv.org/abs/1912.03095">"Video to Events: Recylcing Video Datasets for Event Cameras"</a>.</p>
+<p>The input to the network is the following video :</p>
+<video controls preload="metadata" style="width:100%">
+  <source src="original_h264.mp4"  type="video/mp4">
+</video>
+
+<p>And the result of that can be seen below : </p>
+<video controls preload="metadata" style="width:100%">
+  <source src="upsampling_h264.mp4"  type="video/mp4">
+</video>
+
 <h1 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h1>
 <h1 id="network">Network<a class="headerlink" href="#network" title="Permanent link">&para;</a></h1>
 
