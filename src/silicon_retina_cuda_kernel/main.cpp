@@ -2,6 +2,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <filesystem>
+#include <chrono>
 #include "sillicon_retina_kernel.h"
 #include "cnpy.h"
 
@@ -10,6 +11,132 @@
 
 using namespace std;
 namespace fs = std::filesystem;
+
+#define CUDA_CHECK(call)                                                          \
+\
+    do                                                                            \
+    {                                                                             \
+        cudaError_t err = call;                                                   \
+        if (err != cudaSuccess)                                                   \
+        {                                                                         \
+            std::cerr << "CUDA error in " << __FILE__ << ":" << __LINE__ << " - " \
+                      << cudaGetErrorString(err) << std::endl;                    \
+            exit(EXIT_FAILURE);                                                   \
+        }                                                                         \
+    }                                                                             \
+    while (0)
+
+struct SiliconRetinaConfig
+{
+    float alpha1 = 0.5f;
+    float alpha2 = 0.5f;
+    float V_BIP_LPF_alpha = 0.5f;
+    float lambda_OPL = 3.f;
+    float G_A_zero = 0.5f;
+    float lambda_A = 0.5f;
+    float p1 = 0.25f;
+    float I_bias = 0.01f;
+    float p2 = 1.f;
+    float p3 = 0.2f;
+    float U_rest = -0.02f;
+    float U_th = 0.05f;
+    float U_reset = 0.0f;
+
+    std::string as_string() const
+    {
+        return "SiliconRetinaConfig(alpha1=" + std::to_string(alpha1) +
+               ", alpha2=" + std::to_string(alpha2) +
+               ", V_BIP_LPF_alpha=" + std::to_string(V_BIP_LPF_alpha) +
+               ", lambda_OPL=" + std::to_string(lambda_OPL) +
+               ", G_A_zero=" + std::to_string(G_A_zero) +
+               ", lambda_A=" + std::to_string(lambda_A) +
+               ", p1=" + std::to_string(p1) +
+               ", I_bias=" + std::to_string(I_bias) +
+               ", p2=" + std::to_string(p2) +
+               ", p3=" + std::to_string(p3) +
+               ", U_rest=" + std::to_string(U_rest) +
+               ", U_th=" + std::to_string(U_th) +
+               ", U_reset=" + std::to_string(U_reset) + ")";
+    }
+
+    void print() const
+    {
+        std::cout << "Silicon Retina Configuration:\n"
+                  << "  alpha1: " << alpha1 << ", alpha2: " << alpha2
+                  << ", V_BIP_LPF_alpha: " << V_BIP_LPF_alpha << "\n"
+                  << "  lambda_OPL: " << lambda_OPL << ", G_A_zero: " << G_A_zero
+                  << ", lambda_A: " << lambda_A << "\n"
+                  << "  p1: " << p1 << ", I_bias: " << I_bias << ", p2: " << p2 << ", p3: " << p3 << "\n"
+                  << "  U_rest: " << U_rest << ", U_th: " << U_th << ", U_reset: " << U_reset << std::endl;
+    }
+};
+
+// RAII wrapper for CUDA memory management
+template <typename T>
+class CudaMemory
+{
+private:
+    T *d_ptr;
+    size_t size_bytes;
+
+public:
+    explicit CudaMemory(size_t count) : size_bytes(count * sizeof(T))
+    {
+        CUDA_CHECK(cudaMalloc(&d_ptr, size_bytes));
+    }
+
+    ~CudaMemory()
+    {
+        if (d_ptr)
+        {
+            CUDA_CHECK(cudaFree(d_ptr));
+        }
+    }
+
+    // Non-copyable but movable
+    CudaMemory(const CudaMemory &) = delete;
+    CudaMemory &operator=(const CudaMemory &) = delete;
+    CudaMemory(CudaMemory &&other) noexcept : d_ptr(other.d_ptr), size_bytes(other.size_bytes)
+    {
+        other.d_ptr = nullptr;
+        other.size_bytes = 0;
+    }
+
+    CudaMemory &operator=(CudaMemory &&other) noexcept
+    {
+        if (this != &other)
+        {
+            if (d_ptr)
+                cudaFree(d_ptr);
+            d_ptr = other.d_ptr;
+            size_bytes = other.size_bytes;
+            other.d_ptr = nullptr;
+            other.size_bytes = 0;
+        }
+        return *this;
+    }
+
+    T *get() { return d_ptr; }
+    const T *get() const { return d_ptr; }
+
+    void copyFromHost(const std::vector<T> &host_data)
+    {
+        if (host_data.size() * sizeof(T) != size_bytes)
+        {
+            throw std::runtime_error("Size mismatch in copyFromHost");
+        }
+        CUDA_CHECK(cudaMemcpy(d_ptr, host_data.data(), size_bytes, cudaMemcpyHostToDevice));
+    }
+
+    void copyToHost(std::vector<T> &host_data)
+    {
+        if (host_data.size() * sizeof(T) != size_bytes)
+        {
+            throw std::runtime_error("Size mismatch in copyToHost");
+        }
+        CUDA_CHECK(cudaMemcpy(host_data.data(), d_ptr, size_bytes, cudaMemcpyDeviceToHost));
+    }
+};
 
 std::vector<fs::path> list_files(const fs::path &directory)
 {
@@ -31,120 +158,190 @@ std::vector<fs::path> list_files(const fs::path &directory)
     return file_paths;
 }
 
-void save_frame(const std::vector<float> &imgs,
-                       int frame_idx,
-                       int T, int H, int W,
-                       const std::string &out_path,
-                       bool save_as_npy = true)
+template <typename T>
+void save_frame_generic(const std::vector<T> &data,
+                        int frame_idx,
+                        int Tsize, int H, int W,
+                        const std::string &out_path,
+                        bool save_as_npy = true)
 {
     // sanity checks
-    if (frame_idx < 0 || frame_idx >= T)
+    if (frame_idx < 0 || frame_idx >= Tsize)
     {
         throw std::out_of_range("frame_idx out of bounds");
     }
 
-    if ((int)imgs.size() != T * H * W)
+    if ((int)data.size() != Tsize * H * W)
     {
-        throw std::runtime_error("imgs.size() doesn't match T*H*W");
+        throw std::runtime_error("data.size() doesn't match T*H*W");
     }
 
-    const float* ptr = imgs.data() + frame_idx*H*W;
-    
-    
+    const T *ptr = data.data() + frame_idx * H * W;
 
     if (save_as_npy)
     {
-        cnpy::npy_save(out_path, ptr, { (size_t)H, (size_t)W }, "w");
+        cnpy::npy_save(out_path, ptr, {static_cast<size_t>(H), static_cast<size_t>(W)}, "w");
     }
     else
     {
-        cv::Mat img_f(H, W, CV_32F, (void *)ptr);
+        // Handle different data types for OpenCV
+        cv::Mat img;
+        if constexpr (std::is_same_v<T, unsigned char>)
+        {
+            img = cv::Mat(H, W, CV_8U, const_cast<T *>(ptr));
+        }
+        else if constexpr (std::is_same_v<T, float>)
+        {
+            img = cv::Mat(H, W, CV_32F, const_cast<T *>(ptr));
+            cv::Mat img_u8;
+            img.convertTo(img_u8, CV_8U, 255.0, 0.0);
+            img = img_u8;
+        }
 
-        // normalize / scale to 0-255
-        cv::Mat img_u8;
-        img_f.convertTo(img_u8, CV_8U, 255.0, 0.0);
-        if (!cv::imwrite(out_path, img_u8))
+        if (!cv::imwrite(out_path, img))
+        {
             throw std::runtime_error("Failed to save image to " + out_path);
+        }
     }
 }
 
-void save_frame(const std::vector<unsigned char> &imgs,
-                       int frame_idx,
-                       int T, int H, int W,
-                       const std::string &out_path,
-                       bool save_as_npy = true)
+void ensure_directory_exists(const std::string &path)
 {
-    // sanity checks
-    if (frame_idx < 0 || frame_idx >= T)
+    if (!fs::exists(path))
     {
-        throw std::out_of_range("frame_idx out of bounds");
+        fs::create_directories(path);
+        std::cout << "Created directory: " << path << std::endl;
     }
+}
 
-    if ((int)imgs.size() != T * H * W)
+double run_silicon_retina_processing(const SiliconRetinaConfig &config,
+                                     int mode, int T, int H, int W,
+                                     CudaMemory<float> &d_imgs,
+                                     CudaMemory<float> &d_LPF1, CudaMemory<float> &d_HPF1, CudaMemory<float> &d_BLURRED2,
+                                     CudaMemory<float> &d_LPF2, CudaMemory<float> &d_I_OPL, CudaMemory<float> &d_V_BIP,
+                                     CudaMemory<float> &d_Q_V_BIP, CudaMemory<float> &d_V_BIP_LPF, CudaMemory<float> &d_HPF2,
+                                     CudaMemory<float> &d_I_Gang, CudaMemory<float> &d_V_LIF, CudaMemory<unsigned char> &d_fired)
+{
+    auto begin = std::chrono::high_resolution_clock::now();
+
+    if (mode == 0)
     {
-        throw std::runtime_error("imgs.size() doesn't match T*H*W");
-    }
-
-    const unsigned char* ptr = imgs.data() + frame_idx*H*W;
-    
-    
-
-    if (save_as_npy)
-    {
-        cnpy::npy_save(out_path, ptr, { (size_t)H, (size_t)W }, "w");
+        run_silicon_retina_model(
+            d_imgs.get(), d_LPF1.get(), d_HPF1.get(), d_BLURRED2.get(), d_LPF2.get(),
+            d_I_OPL.get(), d_V_BIP.get(), d_Q_V_BIP.get(), d_V_BIP_LPF.get(),
+            d_HPF2.get(), d_I_Gang.get(), d_V_LIF.get(), d_fired.get(),
+            T, H, W, config.alpha1, config.alpha2, config.V_BIP_LPF_alpha,
+            config.lambda_OPL, config.G_A_zero, config.lambda_A, config.p1,
+            config.I_bias, config.p2, config.p3, config.U_rest, config.U_th, config.U_reset);
     }
     else
     {
-        cv::Mat img_f(H, W, CV_8U, (void *)ptr);
-
-        // normalize / scale to 0-255
-        cv::Mat img_u8;
-        img_f.convertTo(img_u8, CV_8U, 255.0, 0.0);
-        if (!cv::imwrite(out_path, img_u8))
-            throw std::runtime_error("Failed to save image to " + out_path);
+        run_silicon_retina_model_fired_only(
+            d_imgs.get(), d_LPF1.get(), d_HPF1.get(), d_BLURRED2.get(), d_LPF2.get(),
+            d_I_OPL.get(), d_V_BIP.get(), d_Q_V_BIP.get(), d_V_BIP_LPF.get(),
+            d_HPF2.get(), d_I_Gang.get(), d_V_LIF.get(), d_fired.get(),
+            T, H, W, config.alpha1, config.alpha2, config.V_BIP_LPF_alpha,
+            config.lambda_OPL, config.G_A_zero, config.lambda_A, config.p1,
+            config.I_bias, config.p2, config.p3, config.U_rest, config.U_th, config.U_reset);
     }
+
+    CUDA_CHECK(cudaDeviceSynchronize());
+    auto end = std::chrono::high_resolution_clock::now();
+
+    double duration_ms = std::chrono::duration<double, std::milli>(end - begin).count();
+    return duration_ms;
 }
 
-
-void save_frame_as_png_char(const std::vector<unsigned char> &imgs,
-                       int frame_idx,
-                       int T, int H, int W,
-                       const std::string &out_path)
+void save_results(int mode, int T, int H, int W,
+                  const std::vector<float> &imgs,
+                  const std::vector<float> &LPF1, const std::vector<float> &HPF1,
+                  const std::vector<float> &BLURRED2, const std::vector<float> &LPF2,
+                  const std::vector<float> &I_OPL, const std::vector<float> &V_BIP,
+                  const std::vector<float> &Q_V_BIP, const std::vector<float> &V_BIP_LPF,
+                  const std::vector<float> &HPF2, const std::vector<float> &I_Gang,
+                  const std::vector<float> &V_LIF, const std::vector<unsigned char> &fired)
 {
-    // sanity checks
-    if (frame_idx < 0 || frame_idx >= T)
+
+#ifdef SAVE_TO_FOLDER
+    // Create output directories
+    const std::vector<std::string> output_dirs = {
+        "out", "out/imgs", "out/LPF1", "out/LPF2", "out/BLUR2", "out/HPF1",
+        "out/I_OPL", "out/VBIP", "out/QVBIP", "out/VBIP_LPF", "out/HPF2",
+        "out/IGang", "out/VLIF", "out/fired"};
+
+    for (const auto &dir : output_dirs)
     {
-        throw std::out_of_range("frame_idx out of bounds");
+        ensure_directory_exists(dir);
     }
 
-    if ((int)imgs.size() != T * H * W)
-    {
-        throw std::runtime_error("imgs.size() doesn't match T*H*W");
-    }
+    std::cout << "Saving results..." << std::endl;
 
-    const uint8_t *img_ptr = reinterpret_cast<const uint8_t *>(imgs.data()) + frame_idx * H * W;
-    cv::Mat img_u8(H, W, CV_8U, (void *)img_ptr);
-
-    // save to disk
-    if (!cv::imwrite(out_path, img_u8))
+    for (int t = 0; t < T; ++t)
     {
-        throw std::runtime_error("Failed to save image to " + out_path);
+        try
+        {
+#ifdef SAVE_ALL
+            // Save input images
+            save_frame_generic(imgs, t, T, H, W, "out/imgs/" + std::to_string(t) + ".npy");
+
+            // Save intermediate results (only in mode 0)
+            if (mode == 0)
+            {
+                save_frame_generic(LPF1, t, T, H, W, "out/LPF1/" + std::to_string(t) + ".npy");
+                save_frame_generic(HPF1, t, T, H, W, "out/HPF1/" + std::to_string(t) + ".npy");
+                save_frame_generic(LPF2, t, T, H, W, "out/LPF2/" + std::to_string(t) + ".npy");
+                save_frame_generic(BLURRED2, t, T, H, W, "out/BLUR2/" + std::to_string(t) + ".npy");
+                save_frame_generic(I_OPL, t, T, H, W, "out/I_OPL/" + std::to_string(t) + ".npy");
+                save_frame_generic(V_BIP, t, T, H, W, "out/VBIP/" + std::to_string(t) + ".npy");
+                save_frame_generic(Q_V_BIP, t, T, H, W, "out/QVBIP/" + std::to_string(t) + ".npy");
+                save_frame_generic(V_BIP_LPF, t, T, H, W, "out/VBIP_LPF/" + std::to_string(t) + ".npy");
+                save_frame_generic(HPF2, t, T, H, W, "out/HPF2/" + std::to_string(t) + ".npy");
+                save_frame_generic(I_Gang, t, T, H, W, "out/IGang/" + std::to_string(t) + ".npy");
+                save_frame_generic(V_LIF, t, T, H, W, "out/VLIF/" + std::to_string(t) + ".npy");
+            }
+
+            // Save firing events
+            save_frame_generic(fired, t, T, H, W, "out/fired/" + std::to_string(t) + ".npy");
+#endif
+
+            if ((t + 1) % 10 == 0 || t == T - 1)
+            {
+                std::cout << "Saved " << (t + 1) << "/" << T << " frames" << std::endl;
+            }
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error saving frame " << t << ": " << e.what() << std::endl;
+        }
     }
+#endif
 }
 
 int main(int argc, char **argv)
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        std::cout << "Usage: " << argv[0] << " <path to the folder directory>" << std::endl;
+        std::cout << "Usage: " << argv[0] << " <image_directory> <mode> [options]\n"
+                  << "  image_directory: Path to directory containing image sequence\n"
+                  << "  mode: 0 (full output) or 1 (fired events only)\n"
+                  << "Options:\n"
+                  << "  --help, -h: Show this help message\n"
+                  << std::endl;
         return 1;
     }
 
     fs::path cwd = fs::current_path();
-    cout << "Hello, Silicon Retina Kernel!" << endl;
-    cout << "Current working directory: " << cwd << endl;
-
     fs::path directory_path = argv[1];
+    int mode = std::stoi(argv[2]);
+
+    std::cout << "Hello, Silicon Retina Kernel!" << std::endl;
+    std::cout << "Current working directory: " << cwd << std::endl;
+    std::cout << "Input directory: " << directory_path << std::endl;
+    std::cout << "Processing mode: " << mode << " (" << (mode == 0 ? "full output" : "fired events only") << ")" << std::endl;
+
+    // Configuration
+    SiliconRetinaConfig config;
+    config.print();
 
     std::vector<fs::path> files;
     try
@@ -197,249 +394,90 @@ int main(int argc, char **argv)
         ++frame;
     }
 
-    std::vector<float> LPF1(T * H * W, 0.0f);
-    std::vector<float> HPF1(T * H * W, 0.0f);
-    std::vector<float> BLURRED2(T * H * W, 0.0f);
-    std::vector<float> LPF2(T * H * W, 0.0f);
-    std::vector<float> I_OPL(T * H * W, 0.0f);
-    std::vector<float> V_BIP(T * H * W, 0.0f);
-    std::vector<float> Q_V_BIP(T * H * W, 0.0f);
-    std::vector<float> V_BIP_LPF(T * H * W, 0.0f);
-    std::vector<float> HPF2(T * H * W, 0.0f);
-    std::vector<float> I_Gang(T * H * W, 0.0f);
-    std::vector<float> V_LIF(T * H * W, 0.0f);
-    std::vector<unsigned char> fired(T * H * W, 0);
+    const size_t frame_size = static_cast<size_t>(H) * W;
+    const size_t full_size = static_cast<size_t>(T) * frame_size;
+    const size_t buffer_size = (mode == 0) ? full_size : 2 * frame_size;
 
-    float *d_imgs;
-    float *d_LPF1;
-    float *d_HPF1;
-    float *d_BLURRED2;
-    float *d_LPF2;
-    float *d_I_OPL;
-    float *d_V_BIP;
-    float *d_Q_V_BIP;
-    float *d_V_BIP_LPF;
-    float *d_HPF2;
-    float *d_I_Gang;
-    float *d_V_LIF;
-    unsigned char *d_fired;
+    std::vector<float> LPF1(buffer_size, 0.0f);
+    std::vector<float> HPF1(buffer_size, 0.0f);
+    std::vector<float> BLURRED2(buffer_size, 0.0f);
+    std::vector<float> LPF2(buffer_size, 0.0f);
+    std::vector<float> I_OPL(buffer_size, 0.0f);
+    std::vector<float> V_BIP(buffer_size, 0.0f);
+    std::vector<float> Q_V_BIP(buffer_size, 0.0f);
+    std::vector<float> V_BIP_LPF(buffer_size, 0.0f);
+    std::vector<float> HPF2(buffer_size, 0.0f);
+    std::vector<float> I_Gang(buffer_size, 0.0f);
+    std::vector<float> V_LIF(buffer_size, 0.0f);
+    std::vector<unsigned char> fired(full_size, 0);
 
-    float alpha1 = 0.5f;
-    float alpha2 = 0.5f;
-    float V_BIP_LPF_alpha = 0.5f;
-    float lambda_OPL = 3.f;
-    float G_A_zero = 0.5f;
-    float lambda_A = 0.5f;
-    float p1 = 0.25f;
-    float I_bias = 0.01f;
-    float p2 = 1.f;
-    float p3 = 0.2f;
-    float U_rest = -0.02f;
-    float U_th = 0.05f;
-    float U_reset = 0.0f;
+    // Allocate device memory using RAII wrappers
+    CudaMemory<float> d_imgs(full_size);
+    CudaMemory<float> d_LPF1(buffer_size);
+    CudaMemory<float> d_HPF1(buffer_size);
+    CudaMemory<float> d_BLURRED2(buffer_size);
+    CudaMemory<float> d_LPF2(buffer_size);
+    CudaMemory<float> d_I_OPL(buffer_size);
+    CudaMemory<float> d_V_BIP(buffer_size);
+    CudaMemory<float> d_Q_V_BIP(buffer_size);
+    CudaMemory<float> d_V_BIP_LPF(buffer_size);
+    CudaMemory<float> d_HPF2(buffer_size);
+    CudaMemory<float> d_I_Gang(buffer_size);
+    CudaMemory<float> d_V_LIF(buffer_size);
+    CudaMemory<unsigned char> d_fired(full_size);
 
-    cudaMalloc(&d_imgs, imgs.size() * sizeof(float));
-    cudaMalloc(&d_LPF1, LPF1.size() * sizeof(float));
-    cudaMalloc(&d_HPF1, HPF1.size() * sizeof(float));
-    cudaMalloc(&d_BLURRED2, BLURRED2.size() * sizeof(float));
-    cudaMalloc(&d_LPF2, LPF2.size() * sizeof(float));
-    cudaMalloc(&d_I_OPL, I_OPL.size() * sizeof(float));
-    cudaMalloc(&d_V_BIP, V_BIP.size() * sizeof(float));
-    cudaMalloc(&d_Q_V_BIP, Q_V_BIP.size() * sizeof(float));
-    cudaMalloc(&d_V_BIP_LPF, V_BIP_LPF.size() * sizeof(float));
-    cudaMalloc(&d_HPF2, HPF2.size() * sizeof(float));
-    cudaMalloc(&d_I_Gang, I_Gang.size() * sizeof(float));
-    cudaMalloc(&d_V_LIF, V_LIF.size() * sizeof(float));
-    cudaMalloc(&d_fired, fired.size() * sizeof(uint8_t));
+    // Copy input data to device
+    std::cout << "Copying data to GPU..." << std::endl;
+    auto begin = std::chrono::high_resolution_clock::now();
+    d_imgs.copyFromHost(imgs);
+    d_LPF1.copyFromHost(LPF1);
+    d_HPF1.copyFromHost(HPF1);
+    d_BLURRED2.copyFromHost(BLURRED2);
+    d_LPF2.copyFromHost(LPF2);
+    d_I_OPL.copyFromHost(I_OPL);
+    d_V_BIP.copyFromHost(V_BIP);
+    d_Q_V_BIP.copyFromHost(Q_V_BIP);
+    d_V_BIP_LPF.copyFromHost(V_BIP_LPF);
+    d_HPF2.copyFromHost(HPF2);
+    d_I_Gang.copyFromHost(I_Gang);
+    d_V_LIF.copyFromHost(V_LIF);
+    d_fired.copyFromHost(fired);
 
-    // Copy data to device
-    cudaMemcpy(d_imgs, imgs.data(), imgs.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_LPF1, LPF1.data(), LPF1.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_HPF1, HPF1.data(), HPF1.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_BLURRED2, BLURRED2.data(), BLURRED2.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_LPF2, LPF2.data(), LPF2.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_I_OPL, I_OPL.data(), I_OPL.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_V_BIP, V_BIP.data(), V_BIP.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_Q_V_BIP, Q_V_BIP.data(), Q_V_BIP.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_V_BIP_LPF, V_BIP_LPF.data(), V_BIP_LPF.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_HPF2, HPF2.data(), HPF2.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_I_Gang, I_Gang.data(), I_Gang.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_V_LIF, V_LIF.data(), V_LIF.size() * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_fired, fired.data(), fired.size() * sizeof(uint8_t), cudaMemcpyHostToDevice);
+    // Run processing
+    double duration_ms = run_silicon_retina_processing(
+        config, mode, T, H, W,
+        d_imgs, d_LPF1, d_HPF1, d_BLURRED2, d_LPF2, d_I_OPL,
+        d_V_BIP, d_Q_V_BIP, d_V_BIP_LPF, d_HPF2, d_I_Gang, d_V_LIF, d_fired);
 
-    run_silicon_retina_model(
-        d_imgs,
-        d_LPF1,
-        d_HPF1,
-        d_BLURRED2,
-        d_LPF2,
-        d_I_OPL,
-        d_V_BIP,
-        d_Q_V_BIP,
-        d_V_BIP_LPF,
-        d_HPF2,
-        d_I_Gang,
-        d_V_LIF,
-        d_fired,
-        T,
-        H,
-        W,
-        alpha1,
-        alpha2,
-        V_BIP_LPF_alpha,
-        lambda_OPL,
-        G_A_zero,
-        lambda_A,
-        p1,
-        I_bias,
-        p2,
-        p3,
-        U_rest,
-        U_th,
-        U_reset);
-
-    cudaDeviceSynchronize();
-
-    // 5. Copy results back
-    cudaMemcpy(LPF1.data(), d_LPF1, LPF1.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(HPF1.data(), d_HPF1, HPF1.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(BLURRED2.data(), d_BLURRED2, BLURRED2.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(LPF2.data(), d_LPF2, LPF2.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(I_OPL.data(), d_I_OPL, I_OPL.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(V_BIP.data(), d_V_BIP, V_BIP.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(Q_V_BIP.data(), d_Q_V_BIP, Q_V_BIP.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(V_BIP_LPF.data(), d_V_BIP_LPF, V_BIP_LPF.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(HPF2.data(), d_HPF2, HPF2.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(I_Gang.data(), d_I_Gang, I_Gang.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(V_LIF.data(), d_V_LIF, V_LIF.size() * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaMemcpy(fired.data(), d_fired, fired.size() * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-
-    // 6. Print a few results
-
-    if (!fs::exists("out"))
+    if (mode == 0)
     {
-        fs::create_directory("out");
+        d_LPF1.copyToHost(LPF1);
+        d_HPF1.copyToHost(HPF1);
+        d_BLURRED2.copyToHost(BLURRED2);
+        d_LPF2.copyToHost(LPF2);
+        d_I_OPL.copyToHost(I_OPL);
+        d_V_BIP.copyToHost(V_BIP);
+        d_Q_V_BIP.copyToHost(Q_V_BIP);
+        d_V_BIP_LPF.copyToHost(V_BIP_LPF);
+        d_HPF2.copyToHost(HPF2);
+        d_I_Gang.copyToHost(I_Gang);
+        d_V_LIF.copyToHost(V_LIF);
     }
-    if (!fs::exists("out/imgs"))
-        fs::create_directory("out/imgs");
+    d_fired.copyToHost(fired);
+    auto end = std::chrono::high_resolution_clock::now();
 
-    if (!fs::exists("out/LPF1"))
-        fs::create_directory("out/LPF1");
+    double duration_ms_total = std::chrono::duration<double, std::milli>(end - begin).count();
+    std::cout << std::fixed << std::setprecision(3)
+              << "Processing completed in " << duration_ms << " ms" << std::endl;
+    std::cout << "Throughput: " << (T * 1000.0 / duration_ms) << " frames/second" << std::endl;
+    std::cout << "Including copying results copied back in " << duration_ms_total << " ms" << std::endl;
+    std::cout << "Throughput  " << (T * 1000.0 / duration_ms_total) << " frames/second" << std::endl;
 
-    if (!fs::exists("out/LPF2"))
-        fs::create_directory("out/LPF2");
+    // Save results
+    save_results(mode, T, H, W, imgs, LPF1, HPF1, BLURRED2, LPF2, I_OPL,
+                 V_BIP, Q_V_BIP, V_BIP_LPF, HPF2, I_Gang, V_LIF, fired);
 
-    if (!fs::exists("out/BLUR2"))
-    {
-        fs::create_directory("out/BLUR2");
-    }
-
-    if (!fs::exists("out/HPF1"))
-        fs::create_directory("out/HPF1");
-
-    if (!fs::exists("out/BLUR2"))
-        fs::create_directory("out/BLUR2");
-
-    if (!fs::exists("out/I_OPL"))
-        fs::create_directory("out/I_OPL");
-
-    if (!fs::exists("out/VBIP"))
-        fs::create_directory("out/VBIP");
-
-    if (!fs::exists("out/QVBIP"))
-        fs::create_directory("out/QVBIP");
-
-    if (!fs::exists("out/VBIP_LPF"))
-        fs::create_directory("out/VBIP_LPF");
-
-    if (!fs::exists("out/HPF2"))
-        fs::create_directory("out/HPF2");
-
-    if (!fs::exists("out/IGang"))
-        fs::create_directory("out/IGang");
-
-    if (!fs::exists("out/VLIF"))
-        fs::create_directory("out/VLIF");
-
-    if (!fs::exists("out/fired"))
-        fs::create_directory("out/fired");
-
-    for (int t = 0; t < T; ++t)
-    {
-#ifdef SAVE_TO_FOLDER
-#ifdef SAVE_ALL
-
-        std::string out_path = "out/imgs/" + std::to_string(t) + ".npy";
-        save_frame(imgs, t, T, H, W, out_path);
-        out_path = "out/LPF1/" + std::to_string(t) + ".npy";
-        save_frame(LPF1, t, T, H, W, out_path);
-        out_path = "out/HPF1/" + std::to_string(t) + ".npy";
-        save_frame(HPF1, t, T, H, W, out_path);
-
-        out_path = "out/LPF2/" + std::to_string(t) + ".npy";
-        save_frame(LPF2, t, T, H, W, out_path);
-
-        out_path = "out/BLUR2/" + std::to_string(t) + ".npy";
-        save_frame(BLURRED2, t, T, H, W, out_path);
-
-        out_path = "out/I_OPL/" + std::to_string(t) + ".npy";
-        save_frame(I_OPL, t, T, H, W, out_path);
-
-        out_path = "out/VBIP/" + std::to_string(t) + ".npy";
-        save_frame(V_BIP, t, T, H, W, out_path);
-
-        out_path = "out/QVBIP/" + std::to_string(t) + ".npy";
-        save_frame(Q_V_BIP, t, T, H, W, out_path);
-
-        out_path = "out/VBIP_LPF/" + std::to_string(t) + ".npy";
-        save_frame(V_BIP_LPF, t, T, H, W, out_path);
-
-        out_path = "out/HPF2/" + std::to_string(t) + ".npy";
-        save_frame(HPF2, t, T, H, W, out_path);
-
-        out_path = "out/IGang/" + std::to_string(t) + ".npy";
-        save_frame(I_Gang, t, T, H, W, out_path);
-
-        out_path = "out/VLIF/" + std::to_string(t) + ".npy";
-        save_frame(V_LIF, t, T, H, W, out_path);
-
-        out_path = "out/fired/" + std::to_string(t) + ".npy";
-        save_frame(fired, t, T, H, W, out_path);
-
-#else
-        std::string out_path = "out/imgs_lpf1_" + std::to_string(t) + ".png";
-        save_frame_as_png(HPF1, t, T, H, W, out_path);
-
-#endif
-
-#else
-
-        std::cout << "\n\n frame " << t << ": ";
-        for (int y = 0; y < H; ++y)
-        {
-            for (int x = 0; x < W; ++x)
-            {
-                std::cout << imgs[t * H * W + y * W + x] << " ";
-            }
-            std::cout << std::endl;
-        }
-#endif
-    }
-
-    // 7. Free
-    cudaFree(d_imgs);
-    cudaFree(d_LPF1);
-    cudaFree(d_HPF1);
-    cudaFree(d_BLURRED2);
-    cudaFree(d_LPF2);
-    cudaFree(d_I_OPL);
-    cudaFree(d_V_BIP);
-    cudaFree(d_Q_V_BIP);
-    cudaFree(d_V_BIP_LPF);
-    cudaFree(d_HPF2);
-    cudaFree(d_I_Gang);
-    cudaFree(d_V_LIF);
-    cudaFree(d_fired);
+    std::cout << "Processing completed successfully!" << std::endl;
 
     return 0;
 }
