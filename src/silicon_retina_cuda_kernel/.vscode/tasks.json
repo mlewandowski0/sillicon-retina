@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "nvcc -g -G -o test main.cpp sillicon_retina_kernel.cu `pkg-config --cflags --libs opencv4` -std=c++17",
+      "group": {"kind": "build", "isDefault": true},
+      "options": { "cwd": "${workspaceFolder}" }
+    }
+  ]
+}

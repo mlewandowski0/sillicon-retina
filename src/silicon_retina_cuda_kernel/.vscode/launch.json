@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CUDA C++: Launch",
+      "type": "cuda-gdb",
+      "request": "launch",
+      "program": "${workspaceFolder}/test",
+      "args": ["${input:inputFolder}"],
+      "cwd": "${workspaceFolder}",
+      "stopAtEntry": false,
+      "externalConsole": false,
+      "cudaDebuggerPath": "/usr/local/cuda/bin/cuda-gdb",
+      "preLaunchTask": "build"
+    },
+    {
+      "name": "CUDA C++: Attach",
+      "type": "cuda-gdb",
+      "request": "attach",
+      "program": "${workspaceFolder}/test",
+      "processId": "${command:pickProcess}",
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "inputFolder",
+      "type": "promptString",
+      "description": "Path to the input PNG folder",
+      "default": ""
+    }
+  ]
+}
