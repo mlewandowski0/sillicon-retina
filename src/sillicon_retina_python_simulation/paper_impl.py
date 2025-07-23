@@ -4,7 +4,8 @@ import cv2
 from scipy.signal import convolve2d
 import argparse
 import numpy as np
-
+import imageio
+from datetime import datetime
 
 def annotate_image(image, text, position=(5, 30), font_scale=1, color=(0, 255, 0), thickness=2):
     if len(image.shape) == 2:
@@ -265,131 +266,126 @@ def main():
     parser.add_argument("--path", type=str, default="", help="")
     args = parser.parse_args()
 
-    cap = cv2.VideoCapture(0)  # Use default webcam
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        exit(1)
+    now = datetime.now()
+    formatted = now.strftime("%B %d – %H:%M")
+    with imageio.get_writer(f"output_{formatted}.mp4", fps=30, codec="libx264") as writer:
+
+        if args.live:
+            cap = cv2.VideoCapture(0)  # Use default webcam
+            if not cap.isOpened():
+                print("Error: Could not open webcam.")
+                exit(1)
+
+            while True:
+                ret, frame = cap.read()
+
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                frame = cv2.resize(frame, (256, 256))
 
 
-    if args.live:
-        while True:
-            ret, frame = cap.read()
+                cv2.imshow('frame', frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+        else:
+            path = args.path
+            if path == "":
+                print("--live flag was not specified, however the dataset path was not set ! one of the two are required")
+                return -1
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            frame = cv2.resize(frame, (256, 256))
+            if not os.path.exists(path):
+                path = os.path.abspath(path)
+                print(f"path {path} does not exists !")
+                return -1
 
+            if not os.path.isdir(path):
+                path = os.path.abspath(path)
+                print(f"path {path} must be a directory !")
+                return -1
 
-            cv2.imshow('frame', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-    else:
-        path = args.path
-        if path == "":
-            print("--live flag was not specified, however the dataset path was not set ! one of the two are required")
-            return -1
+            cv2.namedWindow('frames')
+            cv2.createTrackbar('a1', 'frames', int(a1*100), 100, change_alpha1)
+            cv2.createTrackbar('a2', 'frames', int(a2*100), 100, change_alpha2)
+            cv2.createTrackbar('a3', 'frames', int(a3*100), 100, change_alpha3)
+            cv2.createTrackbar('a4', 'frames', int(a4*100), 100, change_alpha4)
+            cv2.createTrackbar('a5', 'frames', int(a5*100), 100, change_alpha5)
+            cv2.createTrackbar("alpha", "frames", int(alpha * 100), 100, change_alpha)
+            cv2.createTrackbar('g_0', 'frames', int(g_0*100), 100, change_g_0)
+            cv2.createTrackbar('lambda_A', 'frames', int(lambda_A*100), 100, change_lambda_A)
+            cv2.createTrackbar("I_bias", "frames", int((1+I_bias)*100), 200, change_I_bias)
+            cv2.createTrackbar("p1", "frames", int(p1 * 100), 200, change_p1)
+            cv2.createTrackbar("p2", "frames", int(p2 * 100), 200, change_p2)
+            cv2.createTrackbar("V_rest", "frames", int((1 + V_rest) * 100), 200, change_V_rest)
+            cv2.createTrackbar("threshold", "frames", int((1 + threshold) * 100), 200, change_threshold)
+            cv2.createTrackbar("sub", "frames", int((1 + sub) * 100), 200, change_sub)
 
-        if not os.path.exists(path):
-            path = os.path.abspath(path)
-            print(f"path {path} does not exists !")
-            return -1
+            filepaths = sorted([os.path.join(path, _path) for _path in os.listdir(path)])
 
-        if not os.path.isdir(path):
-            path = os.path.abspath(path)
-            print(f"path {path} must be a directory !")
-            return -1
+            for filepath in filepaths:
+                img = cv2.imread(filepath)
+                img = img[:,:, 0]
+                input_img = (img - 128.0) / 128.0
 
-        cv2.namedWindow('frames')
-        cv2.createTrackbar('a1', 'frames', int(a1*100), 100, change_alpha1)
-        cv2.createTrackbar('a2', 'frames', int(a2*100), 100, change_alpha2)
-        cv2.createTrackbar('a3', 'frames', int(a3*100), 100, change_alpha3)
-        cv2.createTrackbar('a4', 'frames', int(a4*100), 100, change_alpha4)
-        cv2.createTrackbar('a5', 'frames', int(a5*100), 100, change_alpha5)
-        cv2.createTrackbar("alpha", "frames", int(alpha * 100), 100, change_alpha)
-        cv2.createTrackbar('g_0', 'frames', int(g_0*100), 100, change_g_0)
-        cv2.createTrackbar('lambda_A', 'frames', int(lambda_A*100), 100, change_lambda_A)
-        cv2.createTrackbar("I_bias", "frames", int((1+I_bias)*100), 200, change_I_bias)
-        cv2.createTrackbar("p1", "frames", int(p1 * 100), 200, change_p1)
-        cv2.createTrackbar("p2", "frames", int(p2 * 100), 200, change_p2)
-        cv2.createTrackbar("V_rest", "frames", int((1 + V_rest) * 100), 200, change_V_rest)
-        cv2.createTrackbar("threshold", "frames", int((1 + threshold) * 100), 200, change_threshold)
-        cv2.createTrackbar("sub", "frames", int((1 + sub) * 100), 200, change_sub)
+                if pad is None:
+                    pad = -np.ones_like(input_img)
 
-        filepaths = sorted([os.path.join(path, _path) for _path in os.listdir(path)])
+                I_opl, E_tauC, map2, E_tauS = compute_I_opl(input_img,
+                                            a1=a1,
+                                            a2=a2,
+                                            a3=a3,
+                                            b1=b1,
+                                            b2=b2,
+                                            b3=b3,
+                                            K1=K1,
+                                            K2=K2,
+                                            map2=map2)
 
-        for filepath in filepaths:
-            img = cv2.imread(filepath)
-            img = img[:,:, 0]
-            input_img = (img - 128.0) / 128.0
+                if V_bip is None:
+                    V_bip = np.zeros_like(input_img)
 
-            if pad is None:
-                pad = -np.ones_like(input_img)
+                V_bip, map_contrast = contrast_gain_control(V_bip, I_opl, K3, alpha=alpha,
+                                    a = a4,
+                                    b = b4,
+                                    g_0=g_0,
+                                    lambda_A=lambda_A,
+                                    map=map_contrast,
+                                    quant_bits=4)
 
-            I_opl, E_tauC, map2, E_tauS = compute_I_opl(input_img,
-                                          a1=a1,
-                                          a2=a2,
-                                          a3=a3,
-                                          b1=b1,
-                                          b2=b2,
-                                          b3=b3,
-                                          K1=K1,
-                                          K2=K2,
-                                          map2=map2)
+                if Vm is None:
+                    Vm = np.zeros_like(input_img)
 
-            if V_bip is None:
-                V_bip = np.zeros_like(input_img)
-
-            V_bip, map_contrast = contrast_gain_control(V_bip, I_opl, K3, alpha=alpha,
-                                  a = a4,
-                                  b = b4,
-                                  g_0=g_0,
-                                  lambda_A=lambda_A,
-                                  map=map_contrast,
-                                  quant_bits=4)
-
-            if Vm is None:
-                Vm = np.zeros_like(input_img)
-
-            Vm, events, Igang, map5, hpf_out = excitatory_current_upon_ganglion_cell(Vbip=V_bip,
-                                                                                      I_bias=I_bias,
-                                                                                      Vm=Vm,
-                                                                                      p1=p1,
-                                                                                      p2=p2,
-                                                                                      a5=a5, b5=b5,
-                                                                                      map=map5,
-                                                                                      Vrest=V_rest,
-                                                                                      threshold=threshold,
-                                                                                      sub=sub)
+                Vm, events, Igang, map5, hpf_out = excitatory_current_upon_ganglion_cell(Vbip=V_bip,
+                                                                                        I_bias=I_bias,
+                                                                                        Vm=Vm,
+                                                                                        p1=p1,
+                                                                                        p2=p2,
+                                                                                        a5=a5, b5=b5,
+                                                                                        map=map5,
+                                                                                        Vrest=V_rest,
+                                                                                        threshold=threshold,
+                                                                                        sub=sub)
 
 
 
 
 
-            stage1 = concatenate_images_with_labels([input_img, G_C, E_tauC, T_wr, G_s, E_tauS, I_opl],
-                                                   ["Input", "G_C", "E_tauC", "T_wr", "G_s", "E_tauS", "I_opl"])
+                stage1 = concatenate_images_with_labels([input_img, G_C, E_tauC, T_wr, G_s, E_tauS, I_opl],
+                                                    ["Input", "G_C", "E_tauC", "T_wr", "G_s", "E_tauS", "I_opl"])
 
-            stage2 = concatenate_images_with_labels([Q, map_contrast, g_A, V_bip, pad, pad, pad],
-                                                    ["Q", "map_contrast", "g_A", "V_bip", "", "", ""])
+                stage2 = concatenate_images_with_labels([Q, map_contrast, g_A, V_bip, pad, pad, pad],
+                                                        ["Q", "map_contrast", "g_A", "V_bip", "", "", ""])
 
-            stage3 = concatenate_images_with_labels([map5, hpf_out, Igang, Vm, events, pad, pad],
-                                                    labels=["hpf_map", "hpf_out", "I_gang", "Vm", "events", "", ""])
+                stage3 = concatenate_images_with_labels([map5, hpf_out, Igang, Vm, events, pad, pad],
+                                                        labels=["hpf_map", "hpf_out", "I_gang", "Vm", "events", "", ""])
 
-            final = np.concatenate((stage1, stage2, stage3), axis=0)
-
-
-            # Initialize the VideoWriter with the size of the final frame
-            if out is None:
-                height, width = final.shape[:2]
-                out = cv2.VideoWriter("output.mp4",
-                                      cv2.VideoWriter_fourcc(*'mp4v'),
-                                      fps,
-                                      (width, height))
-
-            out.write(final)
+                final = np.concatenate((stage1, stage2, stage3), axis=0)
 
 
-            cv2.imshow('frames', final)
-            if cv2.waitKey(int(1000 / fps)) & 0xFF == ord('q'):
-                break
+                writer.append_data(final)
+
+
+                cv2.imshow('frames', final)
+                if cv2.waitKey(int(1000 / fps)) & 0xFF == ord('q'):
+                    break
 
 if __name__ == '__main__':
     main()

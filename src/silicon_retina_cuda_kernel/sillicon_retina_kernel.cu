@@ -15,14 +15,11 @@
         }                                                                         \
     } while (0)
 
-// add constants for better maintainability
-
 __constant__ float BLUR_kernel_3x3[9] = {
     1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
     1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
     1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f};
 
-// improved blur function with bounds checking and shared memory optimization
 __device__ float apply_blur_avg(int kernel_size, int W, int H,
                                 const float *input,
                                 int center_idx, int curr_t_offset)
@@ -35,7 +32,6 @@ __device__ float apply_blur_avg(int kernel_size, int W, int H,
     float cnt = 0.0f;
 
     int ks = kernel_size / 2;
-    // unrolled loop for 3 x 3 kernel (most common case)
     if (kernel_size == 3)
     {
         for (int dy = -1; dy <= 1; ++dy)
@@ -57,7 +53,6 @@ __device__ float apply_blur_avg(int kernel_size, int W, int H,
     }
     else
     {
-        // General case for other kernel sizes
         for (int dy = -ks; dy <= ks; ++dy)
         {
             for (int dx = -ks; dx <= ks; ++dx)
@@ -186,124 +181,121 @@ __forceinline__ __device__ char fire_and_reset(LIF_RESET_MODE mode,
     return 0;
 }
 
-__global__ void sillicon_retina_kernel(
-    const float *__restrict__ imgs,
-    float *LPF1,
-    float *HPF1,
-    float *BLURRED2,
-    float *LPF2,
-    float *I_OPL,
-    float *V_BIP,
-    float *Q_V_BIP,
-    float *V_BIP_LPF,
-    float *HPF2,
-    float *I_Gang,
-    float *V_LIF,
-    unsigned char *fired,
-
-    int T, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias,
-    float p2,
-    float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+/********************************************************************
+ * kernel A
+ *******************************************************************/
+__global__ void k_stageA(const float *__restrict__ imgs,
+                         float *__restrict__ LPF1,
+                         float *__restrict__ HPF1,
+                         float *__restrict__ LPF2,
+                         int lin_t_offset, int prev_offset, int curr_offset,
+                         int H, int W,
+                         float alpha1, float alpha2)
 {
-    // linear index
-    const int center_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    // check that thread is not out of valid range
-    if (center_idx >= H * W)
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int HW = H * W;
+    if (idx >= HW)
         return;
 
-    LPF1[center_idx] = imgs[center_idx];
-    HPF1[center_idx] = imgs[center_idx];
-    BLURRED2[center_idx] = imgs[center_idx];
-    LPF2[center_idx] = imgs[center_idx];
-    I_OPL[center_idx] = imgs[center_idx];
-    V_BIP[center_idx] = 0.0f;
-    Q_V_BIP[center_idx] = 0.0f;
-    V_BIP_LPF[center_idx] = 0.0f;
-    HPF2[center_idx] = 0.0f;
-    I_Gang[center_idx] = 0.0f;
-    V_LIF[center_idx] = 0.0f;
+    int lin_idx = lin_t_offset + idx;
+    int prev = prev_offset + idx;
+    int curr = curr_offset + idx;
 
-    for (int t = 1; t < T; t++)
-    {
-        const int prev_t_offset = (t - 1) * H * W;
-        const int curr_t_offset = t * H * W;
+    float lpf1 = apply_low_pass_filter(LPF_MODE::LPF_1,
+                                       imgs[lin_idx],
+                                       LPF1[prev],
+                                       alpha1);
+    LPF1[curr] = lpf1;
 
-        const int prev_t_idx = prev_t_offset + center_idx;
-        const int curr_t_idx = curr_t_offset + center_idx;
+    float hpf1 = lpf1 - LPF1[prev];
+    HPF1[curr] = hpf1;
 
-        // Stage 1 : low-pass filter
-        LPF1[curr_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                 imgs[curr_t_idx],
-                                                 LPF1[prev_t_idx],
-                                                 alpha1);
+    LPF2[curr] = apply_low_pass_filter(LPF_MODE::LPF_1,
+                                       hpf1,
+                                       LPF2[prev],
+                                       alpha2);
+}
 
-        // Stage 2 : high-pass filter
-        HPF1[curr_t_idx] = apply_high_pass_filter(HPF_MODE::HPF_1,
-                                                  LPF1[curr_t_idx],
-                                                  LPF1[prev_t_idx]);
+/********************************************************************
+ * kernel B – first spatial blur (LPF2 → BLURRED2) + Q & V_BIP_LPF
+ *******************************************************************/
+__global__ void k_stageB(const float *__restrict__ LPF2,
+                         float *__restrict__ BLURRED2,
+                         float *__restrict__ I_OPL,
+                         float *__restrict__ Q,
+                         float *__restrict__ V_BIP_LPF,
+                         const float *__restrict__ V_BIP, // t‑1
+                         int lin_t_offset, int prev_offset, int curr_offset,
+                         int H, int W,
+                         float lambda_OPL,
+                         float G_A_zero, float lambda_A,
+                         float V_BIP_LPF_alpha)
+{
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int HW = H * W;
+    if (idx >= HW)
+        return;
 
-        // stage 3 : second low pass filter
-        LPF2[curr_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                 HPF1[curr_t_idx],
-                                                 LPF2[prev_t_idx],
-                                                 alpha2);
+    int prev = prev_offset + idx;
+    int curr = curr_offset + idx;
 
-        // stage 4 : blur operation
-        BLURRED2[curr_t_idx] = apply_blur(BLUR_MODE::BLUR_AVG,
-                                          3, W, H, LPF2, center_idx, curr_t_offset);
+    /* -------- spatial blur of LPF2 ------- */
+    BLURRED2[curr] = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H,
+                                LPF2, idx, curr - idx); // curr‑t slice base
 
-        // Stage 5 : Compute current from OPL (outer plexiform layer)
-        I_OPL[curr_t_idx] = lambda_OPL * (BLURRED2[curr_t_idx] - LPF2[curr_t_idx]);
+    I_OPL[curr] = lambda_OPL * (BLURRED2[curr] - LPF2[curr]);
 
-        // Stage 6: Compute and clamp the Q function
-        Q_V_BIP[curr_t_idx] = G_A_zero + lambda_A * fabsf(V_BIP[prev_t_idx]);
-        Q_V_BIP[curr_t_idx] = fmaxf(0.0f, fminf(Q_V_BIP[curr_t_idx], 1.0f));
+    Q[curr] = G_A_zero + lambda_A * fabsf(V_BIP[prev]);
+    Q[curr] = fmaxf(0.0f, fminf(Q[curr], 1.0f));
 
-        // Stage 7: V_BIP_LPF computatio
-        V_BIP_LPF[curr_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                      Q_V_BIP[curr_t_idx],
-                                                      V_BIP_LPF[prev_t_idx],
-                                                      V_BIP_LPF_alpha);
+    V_BIP_LPF[curr] = apply_low_pass_filter(LPF_MODE::LPF_1,
+                                            Q[curr],
+                                            V_BIP_LPF[prev],
+                                            V_BIP_LPF_alpha);
+}
 
-        // Stage 8: g_A computation
-        float g_A = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H, V_BIP_LPF, center_idx, curr_t_offset);
+/********************************************************************
+ * kernel C – second spatial blur (g_A) + remaining stages
+ *******************************************************************/
+__global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
+                         float *__restrict__ V_BIP,
+                         float *__restrict__ HPF2,
+                         float *__restrict__ I_Gang,
+                         float *__restrict__ V_LIF,
+                         unsigned char *__restrict__ fired,
+                         const float *__restrict__ I_OPL,
+                         int lin_t_offset, int prev_offset, int curr_offset,
+                         int H, int W,
+                         float p1, float I_bias,
+                         float p2, float p3,
+                         float U_rest, float U_th, float U_reset)
+{
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    const int HW = H * W;
+    if (idx >= HW)
+        return;
 
-        // Stage 9: V_BIP update using Euler method
-        V_BIP[curr_t_idx] = euler_method(V_BIP[prev_t_idx], p1, I_OPL[curr_t_idx], g_A);
+    int prev = prev_offset + idx;
+    int curr = curr_offset + idx;
+    int lin_idx = lin_t_offset + idx;
 
-        // Stage 10: HPF2 computation
-        HPF2[curr_t_idx] = apply_high_pass_filter(HPF_MODE::HPF_1,
-                                                  V_BIP[curr_t_idx],
-                                                  V_BIP[prev_t_idx]);
+    /* ------ spatial blur of V_BIP_LPF (g_A) ------ */
+    float g_A = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H,
+                           V_BIP_LPF, idx, curr - idx);
 
-        // Stage 11: I_Gang computation
-        I_Gang[curr_t_idx] = apply_N(HPF2[curr_t_idx], I_bias);
+    V_BIP[curr] = euler_method(V_BIP[prev], p1,
+                               I_OPL[curr], g_A);
 
-        // Stage 12: LIF membrane potential update
-        V_LIF[curr_t_idx] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
-                                             V_LIF[prev_t_idx],
-                                             p2, p3,
-                                             I_Gang[curr_t_idx],
-                                             U_rest);
+    HPF2[curr] = V_BIP[curr] - V_BIP[prev];
 
-        // Stage 13: Fire and reset
-        fired[curr_t_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
-                                           V_LIF[curr_t_idx],
-                                           U_th,
-                                           U_reset);
-    }
+    I_Gang[curr] = fmaxf(HPF2[curr], 0.0f) + I_bias;
+
+    V_LIF[curr] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
+                                   V_LIF[prev], p2, p3,
+                                   I_Gang[curr], U_rest);
+
+    fired[lin_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
+                                    V_LIF[curr], U_th, U_reset);
 }
 
 void run_silicon_retina_model(
@@ -336,184 +328,54 @@ void run_silicon_retina_model(
     float U_th,
     float U_reset)
 {
-    // calculate the optimal block size
+    const int HW = H * W;
     int device;
-
     CUDA_CHECK(cudaGetDevice(&device));
-
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 
-    // use occupancy calculator for optimal block size
-    int blockSize;
-    int minGridSize;
-    CUDA_CHECK(cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, sillicon_retina_kernel, 0, 0));
+    int block, minGrid;
+    CUDA_CHECK(cudaOccupancyMaxPotentialBlockSize(&minGrid, &block, k_stageA));
+    block = (block / 32) * 32;
+    if (block == 0)
+        block = 256;
+    int grid = (HW + block - 1) / block;
 
-    // ensure block size is reasoanble
-    blockSize = (blockSize / 32) * 32;
-
-    if (blockSize == 0)
-        blockSize = 256;
-
-    int gridSize = (H * W + blockSize - 1) / blockSize;
-
-    sillicon_retina_kernel<<<gridSize, blockSize>>>(
-        d_imgs,
-        d_LPF1,
-        d_HPF1,
-        d_BLURRED2,
-        d_LPF2,
-        d_I_OPL,
-        d_V_BIP,
-        d_Q_V_BIP,
-        d_V_BIP_LPF,
-        d_HPF2,
-        d_I_Gang,
-        d_V_LIF,
-        d_fired,
-
-        T, H, W,
-        alpha1,
-        alpha2,
-        V_BIP_LPF_alpha,
-        lambda_OPL,
-        G_A_zero,
-        lambda_A,
-        p1,
-        I_bias,
-        p2,
-        p3,
-        U_rest,
-        U_th,
-        U_reset);
-
-    CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
-}
-
-
-__global__ void sillicon_retina_kernel_fired_only(const float *__restrict__ imgs,
-                                                  float *LPF1,
-                                                  float *HPF1,
-                                                  float *BLURRED2,
-                                                  float *LPF2,
-                                                  float *I_OPL,
-                                                  float *V_BIP,
-                                                  float *Q_V_BIP,
-                                                  float *V_BIP_LPF,
-                                                  float *HPF2,
-                                                  float *I_Gang,
-                                                  float *V_LIF,
-                                                  unsigned char *fired,
-
-                                                  int T, int H, int W,
-                                                  float alpha1,
-                                                  float alpha2,
-                                                  float V_BIP_LPF_alpha,
-                                                  float lambda_OPL,
-                                                  float G_A_zero,
-                                                  float lambda_A,
-                                                  float p1,
-                                                  float I_bias,
-                                                  float p2,
-                                                  float p3,
-                                                  float U_rest,
-                                                  float U_th,
-                                                  float U_reset)
-{
-    // linear index
-    const int center_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    // check that thread is not out of valid range
-    if (center_idx >= H * W)
-        return;
-
-    LPF1[center_idx] = 0.0f;
-    HPF1[center_idx] = 0.0f;
-    BLURRED2[center_idx] = 0.0f;
-    LPF2[center_idx] = 0.0f;
-    I_OPL[center_idx] = 0.0f;
-    V_BIP[center_idx] = 0.0f;
-    Q_V_BIP[center_idx] = 0.0f;
-    V_BIP_LPF[center_idx] = 0.0f;
-    HPF2[center_idx] = 0.0f;
-    I_Gang[center_idx] = 0.0f;
-    V_LIF[center_idx] = 0.0f;
+    int prev_offset = 0;
+    int curr_offset = HW;
+    int lin_t_offset = HW;
 
     for (int t = 1; t < T; ++t)
     {
-        const int current_double_buffer_idx = t % 2;
-        const int previous_double_buffer_idx = (t - 1) % 2;
 
-        const int curr_buff_t_offset = current_double_buffer_idx * H * W;
-        const int prev_buff_t_offset = previous_double_buffer_idx * H * W;
+        prev_offset = (t - 1) * HW;
+        curr_offset = t * HW;
+        lin_t_offset = t * HW;
 
-        const int curr_buff_t_idx = center_idx + curr_buff_t_offset;
-        const int prev_buff_t_idx = center_idx + prev_buff_t_offset;
+        /* ---------- kernel A ---------- */
+        k_stageA<<<grid, block>>>(d_imgs,
+                                  d_LPF1, d_HPF1, d_LPF2,
+                                  lin_t_offset, prev_offset, curr_offset,
+                                  H, W, alpha1, alpha2);
 
-        const int curr_t_idx = t * H * W + center_idx;
+        /* ---------- kernel B ---------- */
+        k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
+                                  d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
+                                  lin_t_offset, prev_offset, curr_offset, H, W,
+                                  lambda_OPL, G_A_zero, lambda_A,
+                                  V_BIP_LPF_alpha);
 
-        // Stage 1 : low-pass filter
-        LPF1[curr_buff_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                      imgs[curr_t_idx],
-                                                      LPF1[prev_buff_t_idx],
-                                                      alpha1);
-
-        // Stage 2 : high-pass filter
-        HPF1[curr_buff_t_idx] = apply_high_pass_filter(HPF_MODE::HPF_1,
-                                                       LPF1[curr_buff_t_idx],
-                                                       LPF1[prev_buff_t_idx]);
-
-        // stage 3 : second low pass filter
-        LPF2[curr_buff_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                      HPF1[curr_buff_t_idx],
-                                                      LPF2[prev_buff_t_idx],
-                                                      alpha2);
-
-        // stage 4 : blur operation
-        BLURRED2[curr_buff_t_idx] = apply_blur(BLUR_MODE::BLUR_AVG,
-                                               3, W, H, LPF2, center_idx, curr_buff_t_offset);
-
-        // Stage 5 : Compute current from OPL (outer plexiform layer)
-        I_OPL[curr_buff_t_idx] = lambda_OPL * (BLURRED2[curr_buff_t_idx] - LPF2[curr_buff_t_idx]);
-
-        // Stage 6: Compute and clamp the Q function
-        Q_V_BIP[curr_buff_t_idx] = G_A_zero + lambda_A * fabsf(V_BIP[prev_buff_t_idx]);
-        Q_V_BIP[curr_buff_t_idx] = fmaxf(0.0f, fminf(Q_V_BIP[curr_buff_t_idx], 1.0f));
-
-        // Stage 7: V_BIP_LPF computatio
-        V_BIP_LPF[curr_buff_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                           Q_V_BIP[curr_buff_t_idx],
-                                                           V_BIP_LPF[prev_buff_t_idx],
-                                                           V_BIP_LPF_alpha);
-
-        // Stage 8: g_A computation
-        float g_A = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H, V_BIP_LPF, center_idx, curr_buff_t_offset);
-
-        // Stage 9: V_BIP update using Euler method
-        V_BIP[curr_buff_t_idx] = euler_method(V_BIP[prev_buff_t_idx], p1, I_OPL[curr_buff_t_idx], g_A);
-
-        // Stage 10: HPF2 computation
-        HPF2[curr_buff_t_idx] = apply_high_pass_filter(HPF_MODE::HPF_1,
-                                                       V_BIP[curr_buff_t_idx],
-                                                       V_BIP[prev_buff_t_idx]);
-
-        // Stage 11: I_Gang computation
-        I_Gang[curr_buff_t_idx] = apply_N(HPF2[curr_buff_t_idx], I_bias);
-
-        // Stage 12: LIF membrane potential update
-        V_LIF[curr_buff_t_idx] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
-                                                  V_LIF[prev_buff_t_idx],
-                                                  p2, p3,
-                                                  I_Gang[curr_buff_t_idx],
-                                                  U_rest);
-
-        // Stage 13: Fire and reset
-        fired[curr_t_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
-                                                V_LIF[curr_buff_t_idx],
-                                                U_th,
-                                                U_reset);
+        /* ---------- kernel C ---------- */
+        k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2,
+                                  d_I_Gang, d_V_LIF, d_fired,
+                                  d_I_OPL,
+                                  lin_t_offset, prev_offset, curr_offset, H, W,
+                                  p1, I_bias, p2, p3,
+                                  U_rest, U_th, U_reset);
     }
+
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 void run_silicon_retina_model_fired_only(
@@ -546,164 +408,57 @@ void run_silicon_retina_model_fired_only(
     float U_th,
     float U_reset)
 {
-    // launch the kernel
-    int blockSize = 256;
-    int gridSize = (H * W + blockSize - 1) / blockSize;
+    const int HW = H * W;
+    int device;
+    CUDA_CHECK(cudaGetDevice(&device));
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 
-    sillicon_retina_kernel_fired_only<<<gridSize, blockSize>>>(
-        d_imgs,
-        d_LPF1,
-        d_HPF1,
-        d_BLURRED2,
-        d_LPF2,
-        d_I_OPL,
-        d_V_BIP,
-        d_Q_V_BIP,
-        d_V_BIP_LPF,
-        d_HPF2,
-        d_I_Gang,
-        d_V_LIF,
-        d_fired,
+    int block, minGrid;
+    CUDA_CHECK(cudaOccupancyMaxPotentialBlockSize(&minGrid, &block, k_stageA));
+    block = (block / 32) * 32;
+    if (block == 0)
+        block = 256;
+    int grid = (HW + block - 1) / block;
 
-        T, H, W,
-        alpha1,
-        alpha2,
-        V_BIP_LPF_alpha,
-        lambda_OPL,
-        G_A_zero,
-        lambda_A,
-        p1,
-        I_bias,
-        p2,
-        p3,
-        U_rest,
-        U_th,
-        U_reset);
-}
+    int prev_offset = 0;
+    int curr_offset = HW;
+    int lin_t_offset = HW;
 
-__global__ void silicon_retina_kernel_online(const float *__restrict__ imgs,
-                                             float *LPF1,
-                                             float *HPF1,
-                                             float *BLURRED2,
-                                             float *LPF2,
-                                             float *I_OPL,
-                                             float *V_BIP,
-                                             float *Q_V_BIP,
-                                             float *V_BIP_LPF,
-                                             float *HPF2,
-                                             float *I_Gang,
-                                             float *V_LIF,
-                                             unsigned char *fired,
-
-                                             int curr_t, int H, int W,
-                                             float alpha1,
-                                             float alpha2,
-                                             float V_BIP_LPF_alpha,
-                                             float lambda_OPL,
-                                             float G_A_zero,
-                                             float lambda_A,
-                                             float p1,
-                                             float I_bias,
-                                             float p2,
-                                             float p3,
-                                             float U_rest,
-                                             float U_th,
-                                             float U_reset)
-{
-    // linear index
-    const int center_idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-    // check that thread is not out of valid range
-    if (center_idx >= H * W)
-        return;
-
-    if (curr_t <= 0)
+    for (int t = 1; t < T; ++t)
     {
-        // initialize the buffers
-        LPF1[center_idx] = 0.0f;
-        HPF1[center_idx] = 0.0f;
-        BLURRED2[center_idx] = 0.0f;
-        LPF2[center_idx] = 0.0f;
-        I_OPL[center_idx] = 0.0f;
-        V_BIP[center_idx] = 0.0f;
-        Q_V_BIP[center_idx] = 0.0f;
-        V_BIP_LPF[center_idx] = 0.0f;
-        HPF2[center_idx] = 0.0f;
-        I_Gang[center_idx] = 0.0f;
-        V_LIF[center_idx] = 0.0f;
 
-        return;
+        const int current_double_buffer_idx = t % 2;
+        const int previous_double_buffer_idx = (t - 1) % 2;
+
+        curr_offset = current_double_buffer_idx * HW;
+        prev_offset = previous_double_buffer_idx * HW;
+        lin_t_offset = t * HW;
+
+        /* ---------- kernel A ---------- */
+        k_stageA<<<grid, block>>>(d_imgs,
+                                  d_LPF1, d_HPF1, d_LPF2,
+                                  lin_t_offset, prev_offset, curr_offset,
+                                  H, W, alpha1, alpha2);
+
+        /* ---------- kernel B ---------- */
+        k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
+                                  d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
+                                  lin_t_offset, prev_offset, curr_offset, H, W,
+                                  lambda_OPL, G_A_zero, lambda_A,
+                                  V_BIP_LPF_alpha);
+
+        /* ---------- kernel C ---------- */
+        k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2,
+                                  d_I_Gang, d_V_LIF, d_fired,
+                                  d_I_OPL,
+                                  lin_t_offset, prev_offset, curr_offset, H, W,
+                                  p1, I_bias, p2, p3,
+                                  U_rest, U_th, U_reset);
     }
 
-    const int current_double_buffer_idx = curr_t % 2;
-    const int previous_double_buffer_idx = (curr_t - 1) % 2;
-
-    const int curr_buff_t_offset = current_double_buffer_idx * H * W;
-    const int prev_buff_t_offset = previous_double_buffer_idx * H * W;
-
-    const int curr_buff_t_idx = center_idx + curr_buff_t_offset;
-    const int prev_buff_t_idx = center_idx + prev_buff_t_offset;
-
-    // Stage 1 : low-pass filter
-    LPF1[curr_buff_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                  imgs[center_idx],
-                                                  LPF1[prev_buff_t_idx],
-                                                  alpha1);
-
-    // Stage 2 : high-pass filter
-    HPF1[curr_buff_t_idx] = apply_high_pass_filter(HPF_MODE::HPF_1,
-                                                   LPF1[curr_buff_t_idx],
-                                                   LPF1[prev_buff_t_idx]);
-
-    // stage 3 : second low pass filter
-    LPF2[curr_buff_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                  HPF1[curr_buff_t_idx],
-                                                  LPF2[prev_buff_t_idx],
-                                                  alpha2);
-
-    // stage 4 : blur operation
-    BLURRED2[curr_buff_t_idx] = apply_blur(BLUR_MODE::BLUR_AVG,
-                                           3, W, H, LPF2, center_idx, curr_buff_t_offset);
-
-    // Stage 5 : Compute current from OPL (outer plexiform layer)
-    I_OPL[curr_buff_t_idx] = lambda_OPL * (BLURRED2[curr_buff_t_idx] - LPF2[curr_buff_t_idx]);
-
-    // Stage 6: Compute and clamp the Q function
-    Q_V_BIP[curr_buff_t_idx] = G_A_zero + lambda_A * fabsf(V_BIP[prev_buff_t_idx]);
-    Q_V_BIP[curr_buff_t_idx] = fmaxf(0.0f, fminf(Q_V_BIP[curr_buff_t_idx], 1.0f));
-
-    // Stage 7: V_BIP_LPF computatio
-    V_BIP_LPF[curr_buff_t_idx] = apply_low_pass_filter(LPF_MODE::LPF_1,
-                                                       Q_V_BIP[curr_buff_t_idx],
-                                                       V_BIP_LPF[prev_buff_t_idx],
-                                                       V_BIP_LPF_alpha);
-
-    // Stage 8: g_A computation
-    float g_A = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H, V_BIP_LPF, center_idx, curr_buff_t_offset);
-
-    // Stage 9: V_BIP update using Euler method
-    V_BIP[curr_buff_t_idx] = euler_method(V_BIP[prev_buff_t_idx], p1, I_OPL[curr_buff_t_idx], g_A);
-
-    // Stage 10: HPF2 computation
-    HPF2[curr_buff_t_idx] = apply_high_pass_filter(HPF_MODE::HPF_1,
-                                                   V_BIP[curr_buff_t_idx],
-                                                   V_BIP[prev_buff_t_idx]);
-
-    // Stage 11: I_Gang computation
-    I_Gang[curr_buff_t_idx] = apply_N(HPF2[curr_buff_t_idx], I_bias);
-
-    // Stage 12: LIF membrane potential update
-    V_LIF[curr_buff_t_idx] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
-                                              V_LIF[prev_buff_t_idx],
-                                              p2, p3,
-                                              I_Gang[curr_buff_t_idx],
-                                              U_rest);
-
-    // Stage 13: Fire and reset
-    fired[curr_buff_t_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
-                                            V_LIF[curr_buff_t_idx],
-                                            U_th,
-                                            U_reset);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 void run_silicon_retina_model_online(
@@ -736,37 +491,51 @@ void run_silicon_retina_model_online(
     float U_th,
     float U_reset)
 {
-    // launch the kernel
-    int blockSize = 256;
-    int gridSize = (H * W + blockSize - 1) / blockSize;
+    const int HW = H * W;
+    int device;
+    CUDA_CHECK(cudaGetDevice(&device));
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 
-    silicon_retina_kernel_online<<<gridSize, blockSize>>>(
-        d_imgs,
-        d_LPF1,
-        d_HPF1,
-        d_BLURRED2,
-        d_LPF2,
-        d_I_OPL,
-        d_V_BIP,
-        d_Q_V_BIP,
-        d_V_BIP_LPF,
-        d_HPF2,
-        d_I_Gang,
-        d_V_LIF,
-        d_fired,
+    int block, minGrid;
+    CUDA_CHECK(cudaOccupancyMaxPotentialBlockSize(&minGrid, &block, k_stageA));
+    block = (block / 32) * 32;
+    if (block == 0)
+        block = 256;
+    int grid = (HW + block - 1) / block;
 
-        curr_t, H, W,
-        alpha1,
-        alpha2,
-        V_BIP_LPF_alpha,
-        lambda_OPL,
-        G_A_zero,
-        lambda_A,
-        p1,
-        I_bias,
-        p2,
-        p3,
-        U_rest,
-        U_th,
-        U_reset);
+    int prev_offset = 0;
+    int curr_offset = HW;
+    int lin_t_offset = HW;
+
+    const int current_double_buffer_idx = curr_t % 2;
+    const int previous_double_buffer_idx = (curr_t - 1) % 2;
+
+    curr_offset = current_double_buffer_idx * HW;
+    prev_offset = previous_double_buffer_idx * HW;
+    lin_t_offset = 0;
+
+    /* ---------- kernel A ---------- */
+    k_stageA<<<grid, block>>>(d_imgs,
+                                  d_LPF1, d_HPF1, d_LPF2,
+                                  lin_t_offset, prev_offset, curr_offset,
+                                  H, W, alpha1, alpha2);
+
+    /* ---------- kernel B ---------- */
+    k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
+                                  d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
+                                  lin_t_offset, prev_offset, curr_offset, H, W,
+                                  lambda_OPL, G_A_zero, lambda_A,
+                                  V_BIP_LPF_alpha);
+
+    /* ---------- kernel C ---------- */
+    k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2,
+                                  d_I_Gang, d_V_LIF, d_fired,
+                                  d_I_OPL,
+                                  lin_t_offset, prev_offset, curr_offset, H, W,
+                                  p1, I_bias, p2, p3,
+                                  U_rest, U_th, U_reset);
+                        
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }

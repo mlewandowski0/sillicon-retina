@@ -219,7 +219,7 @@ void save_current_frame_state(int frame_idx, int H, int W,
 
     // Always save fired events (from the double buffer)
     std::vector<unsigned char> fired_frame(frame_size);
-    d_fired.copyToHostPartial(fired_frame.data(), frame_size, buffer_offset);
+    d_fired.copyToHostPartial(fired_frame.data(), frame_size, 0);
 
     std::string out_path = "out/fired/" + std::to_string(frame_idx) + ".npy";
     cnpy::npy_save(out_path, fired_frame.data(), {static_cast<size_t>(H), static_cast<size_t>(W)}, "w");
@@ -318,11 +318,11 @@ double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
     CudaMemory<float> d_HPF2(double_buffer_size);
     CudaMemory<float> d_I_Gang(double_buffer_size);
     CudaMemory<float> d_V_LIF(double_buffer_size);
-    CudaMemory<unsigned char> d_fired(double_buffer_size);  // Double buffered output
+    CudaMemory<unsigned char> d_fired(frame_size); 
     
     // Initialize all arrays to zero
     std::vector<float> zero_buffer_float(double_buffer_size, 0.0f);
-    std::vector<unsigned char> zero_buffer_char(double_buffer_size, 0);
+    std::vector<unsigned char> zero_buffer_char(frame_size, 0);
     
     d_LPF1.copyFromHost(zero_buffer_float);
     d_HPF1.copyFromHost(zero_buffer_float);
@@ -385,7 +385,7 @@ double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
             d_I_Gang.get(),
             d_V_LIF.get(),
             d_fired.get(),
-            curr_t, H, W,
+            curr_t+1, H, W,
             config.alpha1,
             config.alpha2,
             config.V_BIP_LPF_alpha,
