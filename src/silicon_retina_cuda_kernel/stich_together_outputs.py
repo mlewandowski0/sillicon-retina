@@ -39,7 +39,7 @@ for k,v in d.items():
     d[k] = els
 
 
-number_of_frames = len(d["out/imgs"])    
+number_of_frames = len(d["out/fired"])    
 order = ["imgs", "LPF1", "HPF1", "LPF2", "BLUR2", "I_OPL", "VBIP", "VBIP_LPF", "HPF2", "IGang", "VLIF","fired"]
 is_scaled = [False, False, True, True, True, True, True, True, True, True, True, True]
 
@@ -51,7 +51,11 @@ with imageio.get_writer(f"output_{formatted}.mp4", fps=30, codec="libx264") as w
         current_row = []
         
         for scaled_flag, k in zip(is_scaled, order): 
-            path = d["out/" + k][i]
+            keyword = "out/" + k
+            if keyword not in d:
+                continue
+            
+            path = d[keyword][i]
             
             if path.endswith(".npy"):
                 f = np.load(path)
