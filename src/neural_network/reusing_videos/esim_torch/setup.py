@@ -13,9 +13,9 @@ setup(
             ]
         ),
         CUDAExtension(
-            name='esim_torch.se_cuda',
+            name='esim_torch.silicon_retina_cuda',
             sources=[
-                'src/esim_torch/se_cuda_kernel.cu',
+                'src/esim_torch/silicon_retina_cuda_kernel.cu',
             ]
         )
     ],

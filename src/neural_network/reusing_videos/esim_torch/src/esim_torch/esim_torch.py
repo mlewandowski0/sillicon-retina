@@ -1,5 +1,5 @@
 import torch
-import esim_cuda
+from . import esim_cuda
 
 
 class EventSimulator_torch(torch.nn.Module):

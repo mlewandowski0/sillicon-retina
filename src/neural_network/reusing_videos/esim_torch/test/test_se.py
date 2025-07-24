@@ -3,43 +3,33 @@ import matplotlib.pyplot as plt
 import numpy as np
 import glob
 import cv2
+import os
+import imageio
 
-import esim_torch
+from esim_torch import SiliconRetinaVerboseFloatCUDA , SiliconRetinaConfig
 
 
 if __name__ == "__main__":
-    esim = esim_torch.SE(contrast_threshold_neg=0.2,
-                           contrast_threshold_pos=0.2,
-                           refractory_period_ns=0)
-
-    print("Loading images")
-    image_files = sorted(glob.glob("../esim_py/tests/data/images/images/*.png"))
-    images = np.stack([cv2.imread(f, cv2.IMREAD_GRAYSCALE) for f in image_files])
-    timestamps_s = np.genfromtxt("../esim_py/tests/data/images/timestamps.txt")
-    timestamps_ns = (timestamps_s * 1e9).astype("int64")
-
-    log_images = np.log(images.astype("float32") / 255 + 1e-4)
-
-    # generate torch tensors
-    print("Loading data to GPU")
-    device = "cuda:0"
-    log_images = torch.from_numpy(log_images).to(device)
-    timestamps_ns = torch.from_numpy(timestamps_ns).to(device)
-
-    # generate events with GPU support
-    print("Generating events")
-    events = esim.forward(log_images, timestamps_ns)
-
-    # render events 
-    image = images[0]
+    # Load the model
+    T =  300
     
-    print("Plotting")
-    first_few_events = {k: v[:10000].cpu().numpy() for k,v in events.items()}
-    image_color = np.stack([image,image,image],-1)
-    image_color[first_few_events['y'], first_few_events['x'], :] = 0
-    image_color[first_few_events['y'], first_few_events['x'], first_few_events['p']] = 255
-
-    plt.imshow(image_color)
-    plt.savefig("esim_torch_test.png")
-    plt.show()
+    imgs = []
+    frames = [os.path.join("frames", f) for f in sorted(os.listdir("frames")) if f.endswith('.png')]
     
+    for i in range(T):
+        img = cv2.imread(frames[i], cv2.IMREAD_GRAYSCALE)
+        img = torch.tensor(img, dtype=torch.float32)
+        imgs.append(img / 255.0)
+
+    imgs = torch.stack(imgs, dim=0).to("cuda:0")
+
+    config = SiliconRetinaConfig()
+    model = SiliconRetinaVerboseFloatCUDA(config, width=imgs.shape[1], height=imgs.shape[2], T=T)
+    
+    # Run the model
+    fires = model.forward(imgs)
+
+
+    with imageio.get_writer('test.mp4', fps=30) as writer:
+        for frame in fires:
+            writer.append_data(255 * frame.cpu().numpy())

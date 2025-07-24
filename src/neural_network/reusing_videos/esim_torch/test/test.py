@@ -12,7 +12,6 @@ if __name__ == "__main__":
                                    contrast_threshold_pos=0.2,
                            refractory_period_ns=0)
     
-    esim_torch.
   
     print("Loading images")
     image_files = sorted(glob.glob("../esim_py/tests/data/images/images/*.png"))
