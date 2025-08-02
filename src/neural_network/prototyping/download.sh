@@ -1,0 +1,1 @@
+wget https://download.ifi.uzh.ch/rpg/web/data/E2VID/datasets/ecoco_depthmaps_test.zip
