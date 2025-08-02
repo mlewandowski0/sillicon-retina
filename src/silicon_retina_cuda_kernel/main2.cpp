@@ -109,7 +109,7 @@ public:
         CUDA_CHECK(cudaMemcpy(d_ptr, host_data.data(), size_bytes, cudaMemcpyHostToDevice));
     }
 
-    void copyToHost(std::vector<T> &host_data) const  // ← Made const
+    void copyToHost(std::vector<T> &host_data) const // ← Made const
     {
         if (host_data.size() * sizeof(T) != size_bytes)
         {
@@ -127,7 +127,7 @@ public:
         CUDA_CHECK(cudaMemcpy(d_ptr + offset, host_data, count * sizeof(T), cudaMemcpyHostToDevice));
     }
 
-    void copyToHostPartial(T *host_data, size_t count, size_t offset = 0) const  // ← Made const
+    void copyToHostPartial(T *host_data, size_t count, size_t offset = 0) const // ← Made const
     {
         if ((count + offset) * sizeof(T) > size_bytes)
         {
@@ -294,20 +294,20 @@ void save_current_frame_state(int frame_idx, int H, int W,
 
 // Online processing function - processes images one by one
 double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
-                                           const std::vector<fs::path>& files,
-                                           int H, int W, bool save_intermediate)
+                                            const std::vector<fs::path> &files,
+                                            int H, int W, bool save_intermediate)
 {
     const int T = static_cast<int>(files.size());
     const size_t frame_size = H * W;
-    const size_t double_buffer_size = 2 * frame_size;  // Double buffering for state
-    
+    const size_t double_buffer_size = 2 * frame_size; // Double buffering for state
+
     std::cout << "=== Online Processing Mode ===" << std::endl;
     std::cout << "Processing " << T << " frames with dimensions " << W << "x" << H << std::endl;
     std::cout << "Memory usage: " << (double_buffer_size * 11 * sizeof(float) + double_buffer_size * sizeof(unsigned char)) / (1024.0 * 1024.0) << " MB" << std::endl;
-    
+
     // Allocate device memory for double buffering (2 frames worth)
-    CudaMemory<float> d_current_img(frame_size);        // Current input frame
-    CudaMemory<float> d_LPF1(double_buffer_size);       // Double buffered state arrays
+    CudaMemory<float> d_current_img(frame_size);  // Current input frame
+    CudaMemory<float> d_LPF1(double_buffer_size); // Double buffered state arrays
     CudaMemory<float> d_HPF1(double_buffer_size);
     CudaMemory<float> d_BLURRED2(double_buffer_size);
     CudaMemory<float> d_LPF2(double_buffer_size);
@@ -318,12 +318,12 @@ double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
     CudaMemory<float> d_HPF2(double_buffer_size);
     CudaMemory<float> d_I_Gang(double_buffer_size);
     CudaMemory<float> d_V_LIF(double_buffer_size);
-    CudaMemory<unsigned char> d_fired(frame_size); 
-    
+    CudaMemory<unsigned char> d_fired(frame_size);
+
     // Initialize all arrays to zero
     std::vector<float> zero_buffer_float(double_buffer_size, 0.0f);
     std::vector<unsigned char> zero_buffer_char(frame_size, 0);
-    
+
     d_LPF1.copyFromHost(zero_buffer_float);
     d_HPF1.copyFromHost(zero_buffer_float);
     d_BLURRED2.copyFromHost(zero_buffer_float);
@@ -336,40 +336,44 @@ double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
     d_I_Gang.copyFromHost(zero_buffer_float);
     d_V_LIF.copyFromHost(zero_buffer_float);
     d_fired.copyFromHost(zero_buffer_char);
-    
+
     // Setup output directories
     ensure_directory_exists("out");
     ensure_directory_exists("out/fired");
-    ensure_directory_exists("out/VLIF");  // Always create VLIF directory since we always save it
-    
-    if (save_intermediate) {
+    ensure_directory_exists("out/VLIF"); // Always create VLIF directory since we always save it
+
+    if (save_intermediate)
+    {
         const std::vector<std::string> output_dirs = {
             "out/imgs", "out/LPF1", "out/LPF2", "out/BLUR2", "out/HPF1",
             "out/I_OPL", "out/VBIP", "out/QVBIP", "out/VBIP_LPF", "out/HPF2",
-            "out/IGang"
-        };
-        for (const auto& dir : output_dirs) {
+            "out/IGang"};
+        for (const auto &dir : output_dirs)
+        {
             ensure_directory_exists(dir);
         }
     }
-    
-    auto processing_start = std::chrono::high_resolution_clock::now();
-    
-    // Process each frame
-    for (int curr_t = 0; curr_t < T; ++curr_t) {
+
+    double total_ms = 0;
+
+        // Process each frame
+        for (int curr_t = 0; curr_t < T; ++curr_t)
+    {
         // Load current frame
         int dummy_W, dummy_H;
         auto current_frame = load_single_image(files[curr_t], dummy_W, dummy_H, curr_t == 0);
-        
+        auto processing_start = std::chrono::high_resolution_clock::now();
+
         // Upload current frame to GPU
         d_current_img.copyFromHost(current_frame);
-        
+
         // Save input image if requested
-        if (save_intermediate) {
+        if (save_intermediate)
+        {
             std::string out_path = "out/imgs/" + std::to_string(curr_t) + ".npy";
             cnpy::npy_save(out_path, current_frame.data(), {static_cast<size_t>(H), static_cast<size_t>(W)}, "w");
         }
-        
+
         // Run silicon retina kernel for this time step
         run_silicon_retina_model_online(
             d_current_img.get(),
@@ -385,7 +389,7 @@ double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
             d_I_Gang.get(),
             d_V_LIF.get(),
             d_fired.get(),
-            curr_t+1, H, W,
+            curr_t + 1, H, W,
             config.alpha1,
             config.alpha2,
             config.V_BIP_LPF_alpha,
@@ -398,32 +402,35 @@ double run_silicon_retina_online_processing(const SiliconRetinaConfig &config,
             config.p3,
             config.U_rest,
             config.U_th,
-            config.U_reset
-        );
-        
+            config.U_reset);
+
         // Synchronize to ensure kernel completion
         CUDA_CHECK(cudaDeviceSynchronize());
-        
+
+        auto processing_end = std::chrono::high_resolution_clock::now();
+        double duration_ms = std::chrono::duration<double, std::milli>(processing_end - processing_start).count();
+
+        total_ms += duration_ms;
+
         // Save results for this frame (only if not initialization frame)
-        if (curr_t > 0) {
+        if (curr_t > 0)
+        {
             int current_buffer_idx = curr_t % 2;
             save_current_frame_state(curr_t, H, W,
-                                    d_LPF1, d_HPF1, d_BLURRED2, d_LPF2, d_I_OPL,
-                                    d_V_BIP, d_Q_V_BIP, d_V_BIP_LPF, d_HPF2,
-                                    d_I_Gang, d_V_LIF, d_fired,
-                                    current_buffer_idx, save_intermediate);
+                                     d_LPF1, d_HPF1, d_BLURRED2, d_LPF2, d_I_OPL,
+                                     d_V_BIP, d_Q_V_BIP, d_V_BIP_LPF, d_HPF2,
+                                     d_I_Gang, d_V_LIF, d_fired,
+                                     current_buffer_idx, save_intermediate);
         }
-        
+
         // Progress report
-        if ((curr_t + 1) % 10 == 0 || curr_t == T - 1) {
+        if ((curr_t + 1) % 10 == 0 || curr_t == T - 1)
+        {
             std::cout << "Processed " << (curr_t + 1) << "/" << T << " frames" << std::endl;
         }
     }
-    
-    auto processing_end = std::chrono::high_resolution_clock::now();
-    double duration_ms = std::chrono::duration<double, std::milli>(processing_end - processing_start).count();
-    
-    return duration_ms;
+
+    return total_ms;
 }
 
 int main(int argc, char **argv)
@@ -440,9 +447,10 @@ int main(int argc, char **argv)
     fs::path cwd = fs::current_path();
     fs::path directory_path = argv[1];
     bool save_intermediate = false;
-    
+
     // Check for optional flag
-    if (argc > 2 && std::string(argv[2]) == "--save-intermediate") {
+    if (argc > 2 && std::string(argv[2]) == "--save-intermediate")
+    {
         save_intermediate = true;
     }
 
@@ -467,7 +475,8 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (files.empty()) {
+    if (files.empty())
+    {
         std::cout << "No PNG files found in the directory: " << directory_path << std::endl;
         return 1;
     }
@@ -477,39 +486,44 @@ int main(int argc, char **argv)
 
     // Get dimensions from first image
     int W = 0, H = 0;
-    try {
+    try
+    {
         auto first_frame = load_single_image(files[0], W, H, true);
         std::cout << "Loaded first image with dimensions: " << W << "x" << H << std::endl;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "Error loading first image: " << e.what() << std::endl;
         return 1;
     }
 
     // Run online processing
-    try {
+    try
+    {
         double duration_ms = run_silicon_retina_online_processing(config, files, H, W, save_intermediate);
-        
+
         const int T = static_cast<int>(files.size());
         std::cout << std::fixed << std::setprecision(3);
         std::cout << "\n=== Processing Results ===" << std::endl;
         std::cout << "Total processing time: " << duration_ms << " ms" << std::endl;
         std::cout << "Average frame time: " << duration_ms / T << " ms" << std::endl;
         std::cout << "Throughput: " << (T * 1000.0 / duration_ms) << " frames/second" << std::endl;
-        
+
         // Calculate memory savings compared to traditional approach
         size_t online_memory = 2 * H * W * 11 * sizeof(float) + 2 * H * W * sizeof(unsigned char);
         size_t traditional_memory = T * H * W * 11 * sizeof(float) + T * H * W * sizeof(unsigned char);
         double memory_reduction = (1.0 - static_cast<double>(online_memory) / traditional_memory) * 100.0;
-        
+
         std::cout << "\n=== Memory Usage ===" << std::endl;
         std::cout << "Online approach: " << online_memory / (1024.0 * 1024.0) << " MB" << std::endl;
         std::cout << "Traditional approach: " << traditional_memory / (1024.0 * 1024.0) << " MB" << std::endl;
         std::cout << "Memory reduction: " << memory_reduction << "%" << std::endl;
-        
+
         std::cout << "\n=== Processing Completed Successfully ===" << std::endl;
         std::cout << "Results saved to: out/" << std::endl;
-        
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         std::cerr << "Error during processing: " << e.what() << std::endl;
         return 1;
     }
