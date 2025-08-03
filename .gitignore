@@ -1,6 +1,8 @@
 prototyping/dataset/*
 prototyping/output/*
-src/neural_network/reconstruction/ecoco_depthmaps_test
+src/neural_network/data/*
+src/neural_network/debug/*
+src/neural_network/reconstruction/debug/*
 src/neural_network/reconstruction/caltech101
 src/neural_network/reconstruction/N-Caltech101
 sillicon-retina-env
@@ -8,3 +10,8 @@ src/sillicon_retina_python_simulation/datasets/*
 .venv
 src/silicon_retina_cuda_kernel/frames/*
 src/silicon_retina_cuda_kernel/out/*
+wandb/*
+
+*.pyc
+*.pth
+*.sillicon_retina_python_simulation

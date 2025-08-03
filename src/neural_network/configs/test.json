@@ -21,6 +21,7 @@
 
         "debug_save" : true,
         "debug_iters" : 100,
+        "debug_folder": "src/neural_network/debug/test_debug",
 
         "use_lpips": false,
 

@@ -7,7 +7,7 @@ import imageio
 import time 
 import cProfile, pstats
 import tqdm
-from utils.measure import profile_dataset
+from src.neural_network.utils.measure import profile_dataset
 
 class ECOCO_dataset(Dataset):
     def __init__(self, root, split, limit = None):

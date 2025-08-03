@@ -83,8 +83,8 @@ def train_epoch(model, dataloader, optimizer, criterion, device, epoch, config):
 
         if config["debug_save"] and batch_idx % config["debug_iters"] == 0:
             # Save sample predictions
-            if not os.path.exists("debug"):
-                os.makedirs("debug")
+            if not os.path.exists(config['debug_folder']):
+                os.makedirs(config['debug_folder'])
 
             with torch.no_grad():
                 fig, axes = plt.subplots(2, 4, figsize=(16, 8))
@@ -93,7 +93,7 @@ def train_epoch(model, dataloader, optimizer, criterion, device, epoch, config):
                     axes[0, i].set_title('Ground Truth')
                     axes[1, i].imshow(reconstruction[i, 0].cpu().numpy(), cmap='gray')
                     axes[1, i].set_title('Prediction')
-                plt.savefig(f'debug/epoch_{epoch}_batch_{batch_idx}.png')
+                plt.savefig(os.path.join(config['debug_folder'],f'epoch_{epoch}_batch_{batch_idx}.png'))
                 plt.close()
 
         # Average loss over valid steps

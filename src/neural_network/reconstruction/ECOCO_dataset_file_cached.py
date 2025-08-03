@@ -7,7 +7,7 @@ import imageio
 import tqdm
 from .ECOCO_dataset import ECOCO_dataset
 import json
-from utils.measure import profile_dataset
+from src.neural_network.utils.measure import profile_dataset
 
 class ECOCO_dataset_file_cached(Dataset):
     def __init__(self, root, split, cache_folder, limit=None):

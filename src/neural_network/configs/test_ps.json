@@ -3,8 +3,8 @@
         "num_prev_images": 3,
         "sequence_length": 8,
 
-        "data_root": "data/ecoco_depthmaps_test",
-        "cache_folder": "data/ecoco_cache",
+        "data_root": "src/neural_network/data/ecoco_depthmaps_test",
+        "cache_folder": "src/neural_network/data/ecoco_cache",
         "train_limit": null,
         "val_limit": null,
         "skip_frames": 1,
@@ -21,10 +21,11 @@
 
         "debug_save" : true,
         "debug_iters" : 100,
+        "debug_folder": "src/neural_network/debug/test_ps_debug",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "checkpoints/e2vid_ecoco",
+        "checkpoint_dir": "src/neural_network/checkpoints/e2vid_ecoco",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
