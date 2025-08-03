@@ -10,7 +10,7 @@
         "skip_frames": 1,
 
         "batch_size": 8,
-        "num_epochs": 40,
+        "num_epochs": 1000,
         "learning_rate": 1e-4,
         "weight_decay": 1e-4,
         "lr_step_size": 10,
@@ -21,11 +21,11 @@
 
         "debug_save" : true,
         "debug_iters" : 100,
-        "debug_folder": "src/neural_network/debug/test_ps_debug",
+        "debug_folder": "src/neural_network/debug/test_ps_debug_1k_epochs",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/e2vid_ecoco",
+        "checkpoint_dir": "src/neural_network/checkpoints/e2vid_ecoco_test_ps_1k_epochs",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
