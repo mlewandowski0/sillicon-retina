@@ -15,6 +15,18 @@ from src.neural_network.reconstruction.ECOCODatasetWrapper import ECOCODatasetWr
 from src.neural_network.reconstruction.ECOCO_dataset_file_cached import ECOCO_dataset_file_cached
 from src.neural_network.reconstruction.reconstruction_utils import train_epoch, validate, save_checkpoint
 
+from torch.optim.lr_scheduler import StepLR, _LRScheduler
+
+
+class StepLRWithMin(StepLR):
+    def __init__(self, optimizer, step_size, gamma = 0.1, last_epoch = -1, min_lr = 1e-6):
+        super().__init__(optimizer, step_size, gamma, last_epoch)
+        self.min_lr = min_lr
+    
+    def get_lr(self):
+        lrs = super().get_lr()
+        return [max(lr, self.min_lr) for lr in lrs]
+
 if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
@@ -109,10 +121,12 @@ if __name__ == "__main__":
     )
 
     # Learning rate scheduler
-    scheduler = optim.lr_scheduler.StepLR(
+    scheduler = StepLRWithMin(
         optimizer,
         step_size=config['lr_step_size'],
-        gamma=config['lr_gamma']
+        gamma=config['lr_gamma'],
+        min_lr=config.get('min_lr', 1e-6)
+        
     )
 
     # Training loop

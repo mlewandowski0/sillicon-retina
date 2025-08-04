@@ -18,10 +18,11 @@
         "prefetch_factor" : 2,
         "dropout_rate" : 0.2,
         "augment" : true,
+        "min_lr" : 1e-6,
 
         "debug_save" : true,
         "debug_iters" : 100,
-        "debug_folder": "src/neural_network/debug/test_ps_debug_1k_epochs",
+        "debug_folder": "src/neural_network/debug/test_ps_debug_1k_epochs_2",
 
         "use_lpips": true,
 
