@@ -7,12 +7,13 @@ class ECOCODatasetWrapper(Dataset):
     """ Wrapper for ECOCO dataset to prepare data for E2VID training.
     """
     def __init__(self, ecoco_dataset, sequence_length= 8, skip_frames=1,
-                 include_intial_frames_prob = 0.3, augment=True):
+                 include_intial_frames_prob = 0.3, augment=True, normalize_events=True):
         self.dataset = ecoco_dataset
         self.sequence_length = sequence_length
         self.skip_frames = skip_frames
         self.include_initial_frames_prob = include_intial_frames_prob
         self.augment = augment
+        self.normalize_events=normalize_events
         
          # Build valid indices for sequences
         self.valid_indices = []
@@ -27,28 +28,31 @@ class ECOCODatasetWrapper(Dataset):
         
         print(f"Found {len(self.valid_indices)} valid sequences out of {len(self.dataset)} items")
 
-    def _augment_sequence(self, frames, grids):
+    def _augment_sequence(self, frames, grids, optical_flows):
         """Apply data augmentation to frames and grids"""
 
         # frames here are of shape (N, H, W)
-        # while events are of shape (N, 5, H, W)
+        # events are of shape (N, 5, H, W)
+        # flows are of shape (N, 2, H, W)
 
         if not self.augment:
-            return frames, grids
+            return frames, grids, optical_flows
 
         # Random horizontal flip
         if np.random.rand() > 0.5:
             frames = frames[ :, :, ::-1].copy()
             grids = grids[:, :,  :, ::-1].copy()
+            optical_flows[:, 1, :, :] *= -1
             # Flip polarity for horizontal flip
-            grids = grids * -1
+            #grids = grids * -1
 
         # Random vertical flip
         if np.random.rand() > 0.5:
             frames = frames[ :, ::-1, :].copy()
             grids = grids[ :, :, ::-1, :].copy()
+            optical_flows[:, 0, :, :] *= -1
             # Flip polarity for vertical flip
-            grids = grids * -1
+            #grids = grids * -1
 
         # Random brightness adjustment for frames
         if np.random.rand() > 0.5:
@@ -61,7 +65,15 @@ class ECOCODatasetWrapper(Dataset):
             noise = np.random.randn(*grids.shape) * noise_level
             grids = grids + noise
 
-        return frames.astype(np.float32), grids.astype(np.float32)
+        return frames.astype(np.float32), grids.astype(np.float32), optical_flows.astype(np.float32)
+
+    def _normalize_events(self, events):
+        nz = events != 0
+        if nz.any():
+            m = events[nz].mean()
+            s = events[nz].std().clamp(min=1e-4)
+            events[nz] = (events[nz] - m ) / s
+        return events
 
     def __len__(self):
         return int(len(self.valid_indices) * 1.5)
@@ -76,6 +88,7 @@ class ECOCODatasetWrapper(Dataset):
 
         frames = item['frames']  # (N, H, W)
         grids = item['grids']  # (N-1, 5, H, W)
+        flows = item["optical_flows"] # (N-1, 2, H, W)
 
         # Normalize frames to [0, 1]
         frames = frames.astype(np.float32) / 255.0
@@ -97,6 +110,9 @@ class ECOCODatasetWrapper(Dataset):
             frame_sequence = frames[:actual_length]
             grid_sequence = grids[:actual_length - 1] if actual_length > 1 else np.zeros(
                 (0, 5, grids.shape[2], grids.shape[3]), dtype=np.float32)
+            flows_sequence = flows[:actual_length - 1] if actual_length > 1 else np.zeros(
+                (0, 2, flows.shape[2], flows.shape[3]), dtype=np.float32)
+
 
             # Pad with zeros if necessary to reach sequence_length
             if actual_length < self.sequence_length:
@@ -113,11 +129,26 @@ class ECOCODatasetWrapper(Dataset):
                 else:
                     grid_sequence = grid_padding
 
+                # Pad flows
+                flow_padding = np.zeros((self.sequence_length - actual_length, 2, flows.shape[2], flows.shape[3]),
+                                        dtype=np.float32)
+
+                if len(flows_sequence) >= 0 :
+                    flows_sequence = np.concatenate([flows_sequence, flow_padding], axis=0)
+                else:
+                    flows_sequence = flow_padding
+
             # Add initial zero grid (representing no events before first frame)
             grid_sequence = np.concatenate([
                 np.zeros((1, 5, grids.shape[2], grids.shape[3]), dtype=np.float32),
                 grid_sequence[:self.sequence_length - 1]
             ], axis=0)
+
+            # Add initial zero optical flow (representing no events before first frame)
+            flows_sequence = np.concatenate([
+                np.zeros((1, 2, flows.shape[2], flows.shape[3]), dtype=np.float32),
+                flows_sequence[:self.sequence_length - 1]
+            ], axis = 0)
 
         else:
             # Normal case: random starting point in the middle of sequence
@@ -127,28 +158,39 @@ class ECOCODatasetWrapper(Dataset):
             # Extract sequence
             frame_sequence = frames[start_idx:start_idx + self.sequence_length]
             grid_sequence = grids[start_idx:start_idx + self.sequence_length - 1]
+            flows_sequence = flows[start_idx:start_idx + self.sequence_length - 1]
 
             # Add extra grid at the beginning to match frame count
             # This represents events between frame[start_idx-1] and frame[start_idx]
             if start_idx > 0:
                 # Use actual previous events if available
                 prev_grid = grids[start_idx - 1]
+                prev_flow = flows[start_idx - 1]
             else:
                 # Use zeros if at the beginning
                 prev_grid = np.zeros((5, grids.shape[2], grids.shape[3]), dtype=np.float32)
+                prev_flow = np.zeros((2, grids.shape[2], grids.shape[3]), dtype=np.float32)
 
             grid_sequence = np.concatenate([
                 prev_grid[np.newaxis, ...],
                 grid_sequence
             ], axis=0)
 
+            flows_sequence = np.concatenate([
+                prev_flow[np.newaxis, ...],
+                flows_sequence
+            ], axis=0)
 
         # apply data augmentation
-        frame_sequence,grid_sequence = self._augment_sequence(frame_sequence, grid_sequence)
+        frame_sequence,grid_sequence, flow_sequence = self._augment_sequence(frame_sequence, grid_sequence, flows_sequence)
 
         # Convert to tensors
         frame_sequence = torch.from_numpy(frame_sequence).unsqueeze(1)  # (L, 1, H, W)
         grid_sequence = torch.from_numpy(grid_sequence)  # (L, 5, H, W)
+        flow_sequence = torch.from_numpy(flow_sequence)
+
+        if self.normalize_events:
+            grid_sequence = self._normalize_events(grid_sequence)
 
         # Create mask indicating which frames are valid (not padded)
         # This can be used for loss computation if needed
@@ -157,8 +199,9 @@ class ECOCODatasetWrapper(Dataset):
             valid_mask[actual_length:] = False
 
         return {
-            'frames': frame_sequence,
-            'grids': grid_sequence,
+            'frames': frame_sequence.float(),
+            'grids': grid_sequence.float(),
+            "optical_flows" : flow_sequence.float(),
             'valid_mask': valid_mask,
             'is_initial': include_initial
         }
@@ -166,13 +209,16 @@ class ECOCODatasetWrapper(Dataset):
 
 if __name__ == "__main__":
     from .ECOCO_dataset_file_cached import ECOCO_dataset_file_cached 
-    dataset = ECOCO_dataset_file_cached(root="data/ecoco_depthmaps_test", split="train", cache_folder="data/ecoco_cache", limit=100)
-    wrapped_dataset = ECOCODatasetWrapper(dataset, sequence_length=8, skip_frames=1, include_intial_frames_prob=1.0)
+    dataset = ECOCO_dataset_file_cached(root="src/neural_network/data/ecoco_depthmaps_test",
+                                        split="train", cache_folder="src/neural_network/data/ecoco_train_test", limit=20)
+    wrapped_dataset = ECOCODatasetWrapper(dataset, sequence_length=20, skip_frames=1, include_intial_frames_prob=0.3)
     print(f"Wrapped dataset length: {len(wrapped_dataset)}")
     sample = wrapped_dataset[0]
     frames = sample['frames']
     grids = sample['grids']
+    of = sample['optical_flows']
 
     print("Sample frames shape: ", frames.shape)
     print("Sample grids shape: ", grids.shape)
+    print("Sample optical flows shape: ", of.shape)
     print("Sample valid mask: ", sample['valid_mask'])

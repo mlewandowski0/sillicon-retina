@@ -24,7 +24,7 @@ class ECOCO_dataset(Dataset):
     def __len__(self):
         return len(self.paths)
 
-    def __load__folder__(self, folder):
+    def __load_folder__(self, folder):
         items = []
         paths = sorted(os.listdir(folder))
 
@@ -35,7 +35,7 @@ class ECOCO_dataset(Dataset):
                 items.append(imageio.imread(path))
 
             elif f.endswith(".npy"):
-                items.append(np.load(path))
+                items.append(np.load(path).astype(np.float32))
 
         return np.array(items)
 
@@ -46,11 +46,13 @@ class ECOCO_dataset(Dataset):
         
 
     def __getitem__(self, index, with_path=False):
-        frames = self.__load__folder__(os.path.join(self.paths[index], "frames"))
+        frames = self.__load_folder__(os.path.join(self.paths[index], "frames"))
         frame_timesteps = os.path.join(self.paths[index], "frames", "timestamps.txt")
         frame_timesteps = self.__load_txt__(frame_timesteps)
         
-        grids = self.__load__folder__(os.path.join(self.paths[index], "VoxelGrid-betweenframes-5"))
+        grids = self.__load_folder__(os.path.join(self.paths[index], "VoxelGrid-betweenframes-5"))
+
+        optical_flows = self.__load_folder__(os.path.join(self.paths[index], "flow"))
         
         grid_timesteps = os.path.join(self.paths[index], "VoxelGrid-betweenframes-5", "timestamps.txt")
         grid_timesteps = self.__load_txt__(grid_timesteps)
@@ -60,6 +62,7 @@ class ECOCO_dataset(Dataset):
         
         ret = {"frames" : frames, 
                 "grids" : grids,
+                "optical_flows" : optical_flows,
                 "frame_timesteps" : np.array(frame_timesteps),
                 "grid_timesteps" : np.array(grid_timesteps),
                 "grid_boundary_timesteps" : np.array(grid_boundary_timesteps)}

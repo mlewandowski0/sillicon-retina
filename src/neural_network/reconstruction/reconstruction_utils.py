@@ -44,7 +44,6 @@ def train_epoch(model, dataloader, optimizer, criterion, device, epoch, config):
         valid_steps = 0
         reconstructions = []
 
-
         for t in range(seq_length):
             # Skip if this frame is padding (only in initial sequences
             if not valid_masks[:, t].any():
