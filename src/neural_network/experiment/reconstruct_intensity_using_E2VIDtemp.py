@@ -227,7 +227,8 @@ if __name__ == "__main__":
             name=f"e2vid_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
 
-    model = E2VID_convLSTM(input_channels=5).to(device)
+    model = E2VID_convLSTM(input_channels=5,
+                           skip_type = config['skip_type']).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
 
     train_base = ECOCO_dataset_file_cached(

@@ -18,6 +18,7 @@
         "prefetch_factor" : 2,
         "dropout_rate" : 0.2,
         "augment" : true,
+        "skip_type" : "sum",
 
         "debug_save" : true,
         "debug_iters" : 100,

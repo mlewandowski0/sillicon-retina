@@ -115,6 +115,8 @@ class Upsample(nn.Module):
         if self.skip_type == "sum":
             if self.proj is not None:
                 x = self.proj(x)
+            if x.shape[2:] != skip.shape[2:]:
+                x = F.interpolate(x, size=skip.shape[2:], mode='bilinear', align_corners=False)
             x = x + skip
         else:  # 'cat'
             if x.shape[2:] != skip.shape[2:]:
@@ -196,15 +198,30 @@ class E2VID_convLSTM(nn.Module):
 
 
 if __name__ == "__main__":
+    def check_cat_version(batch_size, input_channels, resolution):
+        model = E2VID_convLSTM(input_channels=input_channels, skip_type="cat")
+        model.reset(input_shape=resolution, batch_size=batch_size)
+
+        for _ in range(5):
+            batch = torch.zeros(batch_size, input_channels, resolution[0], resolution[1])
+            s = model(batch)
+
+        print(s.shape)
+
+    def check_sum_version(batch_size, input_channels, resolution):
+        model = E2VID_convLSTM(input_channels=input_channels, skip_type="sum")
+        model.reset(input_shape=resolution, batch_size=batch_size)
+
+        for _ in range(5):
+            batch = torch.zeros(batch_size, input_channels, resolution[0], resolution[1])
+            s = model(batch)
+
+        print(s.shape)
+
+
     batch_size = 2
     input_channels = 5
     resolution = (180, 240)
 
-    model = E2VID_convLSTM(input_channels=input_channels, skip_type="cat")
-    model.reset(input_shape=resolution, batch_size=batch_size)
-
-    for _ in range(5):
-        batch = torch.zeros(batch_size, input_channels, resolution[0], resolution[1])
-        s = model(batch)
-
-    print(s.shape)
+    check_cat_version(batch_size, input_channels, resolution)
+    check_sum_version(batch_size, input_channels, resolution)
