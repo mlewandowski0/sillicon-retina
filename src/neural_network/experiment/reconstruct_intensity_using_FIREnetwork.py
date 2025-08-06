@@ -41,6 +41,18 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
     total = 0.0
 
     pbar = tqdm(loader, desc=f"Epoch {epoch + 1}/{config['num_epochs']}")
+    use_amp = (device.type == "cuda") and config.get("use_amp", False)
+
+    # Choose precision: "fp16" (with GradScaler) or "bf16" (no scaling needed).
+    amp_dtype_str = config.get("amp_dtype", "fp16").lower()  # "fp16" or "bf16"
+    amp_dtype = torch.float16 if amp_dtype_str == "fp16" else torch.bfloat16
+
+    # GradScaler is only needed for fp16 on CUDA
+    device_type = 'cuda' if device.type == 'cuda' else 'cpu'
+    scaler = torch.amp.GradScaler(
+        device_type,  # 'cuda' or 'cpu'
+        enabled=(use_amp and amp_dtype is torch.float16)  # scaling only for fp16 on CUDA
+    )
 
     for batch_idx, batch in enumerate(pbar):
         # shapes:
@@ -63,7 +75,7 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         # reset recurrent state with the current spatial size
         model.reset(input_shape=(H, W), batch_size=B)
 
-        loss = 0.0
+        loss = torch.zeros((), device=device)
         valid_steps = 0
         Ihat_prev = None
         Igt_prev = None
@@ -73,33 +85,34 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         Igt_t = None
         Ihat_t = None
 
-        for t in range(L):
-            # skip time step if no sample in batch has it valid
-            if not valid[:, t].any():
-                continue
+        with torch.amp.autocast(device_type, enabled=use_amp, dtype=amp_dtype):
+            for t in range(L):
+                # skip time step if no sample in batch has it valid
+                if not valid[:, t].any():
+                    continue
 
-            x_t = grids[:, t]       # (B, 5, H, W)
-            Igt_t = frames[:, t]    # (B, 1, H, W)
-            Ihat_t = model(x_t)     # (B, 1, H, W)
+                x_t = grids[:, t]       # (B, 5, H, W)
+                Igt_t = frames[:, t]    # (B, 1, H, W)
+                Ihat_t = model(x_t)     # (B, 1, H, W)
 
-            # reconstruction loss (make sure it reduces to scalar)
-            perceptual_loss = lpips_loss(Ihat_t, Igt_t).mean()
+                # reconstruction loss (make sure it reduces to scalar)
+                perceptual_loss = lpips_loss(Ihat_t, Igt_t).mean()
 
-            # temporal consistency (device-safe zero if not applicable)
-            temporal_consistency_term = torch.zeros((), device=Igt_t.device)
-            if (tc_loss is not None) and (Igt_prev is not None) and (Ihat_prev is not None) and (flows is not None):
-                # optical flow at step t: (B, 2, H, W)
-                of = flows[:, t]
-                temporal_consistency_term = tc_loss(of, Ihat_t, Ihat_prev, Igt_t, Igt_prev)
+                # temporal consistency (device-safe zero if not applicable)
+                temporal_consistency_term = torch.zeros((), device=Igt_t.device)
+                if (tc_loss is not None) and (Igt_prev is not None) and (Ihat_prev is not None) and (flows is not None):
+                    # optical flow at step t: (B, 2, H, W)
+                    of = flows[:, t]
+                    temporal_consistency_term = tc_loss(of, Ihat_t, Ihat_prev, Igt_t, Igt_prev)
 
-            loss = loss + perceptual_loss + temporal_consistency_term
+                loss = loss + perceptual_loss + temporal_consistency_term
 
-            perceptual_term_sum += float(perceptual_loss.detach().cpu().item())
-            temporal_consistency_term_sum += float(temporal_consistency_term.detach().cpu().item())
+                perceptual_term_sum += float(perceptual_loss.detach().cpu().item())
+                temporal_consistency_term_sum += float(temporal_consistency_term.detach().cpu().item())
 
-            Ihat_prev = Ihat_t.detach()
-            Igt_prev = Igt_t
-            valid_steps += 1
+                Ihat_prev = Ihat_t.detach()
+                Igt_prev = Igt_t
+                valid_steps += 1
 
         # Optional debug save
         if config.get("debug_save", False) and (batch_idx % config.get("debug_iters", 100) == 0):
@@ -127,9 +140,18 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 
         # optimize
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
+
+
+        if scaler.is_enabled():
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
         total += float(loss.detach().cpu().item())
 
@@ -137,8 +159,8 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         pbar.set_postfix({
             'loss': f"{total / (batch_idx + 1):.4f}",
             'lr': optimizer.param_groups[0]['lr'],
-            'percep_sum': f"{perceptual_term_sum:.3f}",
-            'tc_sum': f"{temporal_consistency_term_sum:.3f}",
+            'percep_sum': f"{(perceptual_term_sum/valid_steps):.3f}",
+            'tc_sum': f"{(temporal_consistency_term_sum/valid_steps):.3f}",
         })
 
         # Log to wandb if enabled
@@ -151,10 +173,6 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
                 'epoch': epoch,
                 'step': epoch * len(loader) + batch_idx
             })
-
-    if profiler is not None:
-        profiler.__exit__(None, None, None)
-
     return total / max(1, len(loader))
 
 
@@ -343,7 +361,7 @@ if __name__ == "__main__":
 
         val_loss = validate(
             model, val_loader, device, epoch, config,
-            lpips_loss=criterion, tc_loss=temporal_criterion, profiler=prof
+            lpips_loss=criterion, tc_loss=temporal_criterion
         )
 
         print(f"\nTrain Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
@@ -368,6 +386,8 @@ if __name__ == "__main__":
 
         scheduler.step()
 
+    if prof is not None:
+        prof.__exit__(None, None, None)
     print("\n" + "=" * 50)
     print("Training completed!")
     print(f"Best validation loss: {best_val_loss:.4f}")

@@ -8,6 +8,8 @@
         "add_bn" : false,
         "out_sigmoid" : false,
 
+        "use_amp" : true,
+        "amp_dtype" : "fp16",
 
         "data_root": "src/neural_network/data/ecoco_depthmaps_test",
         "cache_folder": "src/neural_network/data/ecoco_cache",
@@ -28,11 +30,11 @@
 
         "debug_save" : true,
         "debug_iters" : 100,
-        "debug_folder": "src/neural_network/debug/test_E2VIDtemp",
+        "debug_folder": "src/neural_network/debug/test_FIRE",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/test_E2VIDtemp",
+        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
