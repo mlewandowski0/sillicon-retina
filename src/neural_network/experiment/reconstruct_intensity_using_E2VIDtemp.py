@@ -6,6 +6,8 @@ import torch.optim as optim
 import torch
 import os
 import matplotlib.pyplot as plt
+from torch.profiler import profile, record_function, ProfilerActivity, schedule
+
 
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -20,6 +22,8 @@ from src.neural_network.reconstruction.reconstruction_utils import save_checkpoi
 from torch.optim.lr_scheduler import StepLR
 
 
+torch.backends.cudnn.benchmark = True
+
 class StepLRWithMin(StepLR):
     def __init__(self, optimizer, step_size, gamma=0.1, last_epoch=-1, min_lr=1e-6):
         super().__init__(optimizer, step_size, gamma, last_epoch)
@@ -31,7 +35,7 @@ class StepLRWithMin(StepLR):
 
 
 def train_epoch(model, loader, optimizer, device, epoch, config,
-                lpips_loss: PerceptualLoss, tc_loss: TemporalConsistencyLoss):
+                lpips_loss: PerceptualLoss, tc_loss: TemporalConsistencyLoss, profiler):
 
     model.train()
     total = 0.0
@@ -43,6 +47,10 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         # frames: (B, L, 1, H, W)
         # grids:  (B, L, 5, H, W)
         # flows:  (B, L, 2, H, W)  (optional)
+
+        if profiler is not None:
+            profiler.step()
+
         frames = batch['frames'].to(device)
         grids = batch['grids'].to(device)
         flows = batch.get('optical_flows', None)
@@ -143,6 +151,9 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
                 'epoch': epoch,
                 'step': epoch * len(loader) + batch_idx
             })
+
+    if profiler is not None:
+        profiler.__exit__(None, None, None)
 
     return total / max(1, len(loader))
 
@@ -278,6 +289,24 @@ if __name__ == "__main__":
         prefetch_factor=config['prefetch_factor'],
     )
 
+    # profiling
+    profile_on = config.get("profile_on", False)
+    if profile_on:
+        prof = profile(
+            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            schedule=schedule(wait=5, warmup=5, active=20, repeat=1),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(
+                config.get("profile_dir", "./tb_prof")
+            ),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            with_flops=True
+        )
+        prof.__enter__()
+    else:
+        prof = None
+
     print(f"Train dataset: {len(train_dataset)} sequences")
     print(f"Val dataset: {len(val_dataset)} sequences")
 
@@ -306,12 +335,12 @@ if __name__ == "__main__":
 
         train_loss = train_epoch(
             model, train_loader, optimizer, device, epoch, config,
-            lpips_loss=criterion, tc_loss=temporal_criterion
+            lpips_loss=criterion, tc_loss=temporal_criterion, profiler=prof
         )
 
         val_loss = validate(
             model, val_loader, device, epoch, config,
-            lpips_loss=criterion, tc_loss=temporal_criterion
+            lpips_loss=criterion, tc_loss=temporal_criterion, profiler=prof
         )
 
         print(f"\nTrain Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
