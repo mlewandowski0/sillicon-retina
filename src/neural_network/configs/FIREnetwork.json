@@ -1,0 +1,41 @@
+{
+        "num_bins": 5,
+        "num_prev_images": 3,
+        "sequence_length": 20,
+
+        "hid1" : 16,
+        "ks1" : 3,
+        "add_bn" : false,
+        "out_sigmoid" : false,
+
+
+        "data_root": "src/neural_network/data/ecoco_depthmaps_test",
+        "cache_folder": "src/neural_network/data/ecoco_cache",
+        "train_limit": null,
+        "val_limit": null,
+        "skip_frames": 1,
+
+        "batch_size": 2,
+        "num_epochs": 200,
+        "learning_rate": 1e-4,
+        "weight_decay": 1e-4,
+        "lr_step_size": 10,
+        "lr_gamma": 0.9,
+        "prefetch_factor" : 2,
+        "dropout_rate" : 0.2,
+        "augment" : true,
+        "skip_type" : "sum",
+
+        "debug_save" : true,
+        "debug_iters" : 100,
+        "debug_folder": "src/neural_network/debug/test_E2VIDtemp",
+
+        "use_lpips": true,
+
+        "checkpoint_dir": "src/neural_network/checkpoints/test_E2VIDtemp",
+        "save_every": 5,
+        "keep_last_n_checkpoints": 5,
+
+        "num_workers": 4,
+        "use_wandb": false
+    }
