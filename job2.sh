@@ -1,0 +1,1 @@
+python -m src.neural_network.experiment.reconstruct_intensity_using_E2VIDtemp -c src/neural_network/configs/E2VIDtemp_ps.json
