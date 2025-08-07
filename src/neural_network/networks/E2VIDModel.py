@@ -8,7 +8,7 @@ import wandb
 import torch.nn.functional as F
 
 class E2VIDModel(nn.Module):
-    """ Modified E2VID model for ECOCO dataset reconstruction
+    """ Modified E2VID model for ECOCO dataset dataloaders
 
     """
 

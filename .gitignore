@@ -2,9 +2,9 @@ prototyping/dataset/*
 prototyping/output/*
 src/neural_network/data/*
 src/neural_network/debug/*
-src/neural_network/reconstruction/debug/*
-src/neural_network/reconstruction/caltech101
-src/neural_network/reconstruction/N-Caltech101
+src/neural_network/dataloaders/debug/*
+src/neural_network/dataloaders/caltech101
+src/neural_network/dataloaders/N-Caltech101
 sillicon-retina-env
 src/sillicon_retina_python_simulation/datasets/*
 .venv

@@ -15,9 +15,9 @@ from tqdm import tqdm
 from src.neural_network.networks.FIRE_network import FIRE_network
 from src.neural_network.networks.PerceptualLoss import PerceptualLoss
 from src.neural_network.networks.TemporalConsistencyLoss import TemporalConsistencyLoss
-from src.neural_network.reconstruction.ECOCODatasetWrapper import ECOCODatasetWrapper
-from src.neural_network.reconstruction.ECOCO_dataset_file_cached import ECOCO_dataset_file_cached
-from src.neural_network.reconstruction.reconstruction_utils import save_checkpoint  # <-- add this
+from src.neural_network.dataloaders.ECOCODatasetWrapper import ECOCODatasetWrapper
+from src.neural_network.dataloaders.ECOCO_dataset_file_cached import ECOCO_dataset_file_cached
+from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint  # <-- add this
 
 from torch.optim.lr_scheduler import StepLR
 
@@ -95,7 +95,7 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
                 Igt_t = frames[:, t]    # (B, 1, H, W)
                 Ihat_t = model(x_t)     # (B, 1, H, W)
 
-                # reconstruction loss (make sure it reduces to scalar)
+                # dataloaders loss (make sure it reduces to scalar)
                 perceptual_loss = lpips_loss(Ihat_t, Igt_t).mean()
 
                 # temporal consistency (device-safe zero if not applicable)
