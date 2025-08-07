@@ -235,7 +235,7 @@ if __name__ == "__main__":
         wandb.init(
             project="e2vid-ecoco",
             config=config,
-            name=f"e2vid_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            name=f"e2vid_temporal_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
 
     model = E2VID_convLSTM(input_channels=5,

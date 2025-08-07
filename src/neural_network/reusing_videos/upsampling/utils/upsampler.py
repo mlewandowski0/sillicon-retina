@@ -9,6 +9,7 @@ from . import Sequence
 from .const import imgs_dirname
 from .interpolator import Interpolator
 from .utils import get_sequence_or_none
+import shutil
 
 
 class Upsampler:
@@ -16,13 +17,15 @@ class Upsampler:
 
     def __init__(self, input_dir: str, output_dir: str):
         assert os.path.isdir(input_dir), 'The input directory must exist'
-        assert not os.path.exists(output_dir), 'The output directory must not exist'
+
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
 
         self._prepare_output_dir(input_dir, output_dir)
         self.src_dir = input_dir
         self.dest_dir = output_dir
 
-        path = os.path.join(os.path.dirname(__file__), "../../pretrained_models/film_net/Style/saved_model")
+        path = os.path.join(os.path.dirname(__file__), "../pretrained_models/film_net/Style/saved_model")
         self.interpolator = Interpolator(path, None)
 
     def upsample(self):

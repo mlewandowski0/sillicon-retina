@@ -1,1 +1,0 @@
-python paper_impl_SCAMP_sweep.py --input_path datasets/recording/ --save_path videos/sweeps --g0 0 --lambda_A 8 --total_bits 5 --frac_bits 4 --alpha1 1 --alpha2 1 --alpha3 1 --alpha4 1 --alpha5 1 --alpha 8 --I_bias 0 --p1 1 --p2 16 --V_rest -50 --threshold 20 --sub 20

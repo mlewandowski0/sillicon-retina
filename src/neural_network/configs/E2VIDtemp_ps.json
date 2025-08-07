@@ -21,7 +21,7 @@
         "skip_type" : "sum",
 
         "debug_save" : true,
-        "debug_iters" : 100,
+        "debug_iters" : 250,
         "debug_folder": "src/neural_network/debug/test_E2VIDtemp",
 
         "use_lpips": true,
@@ -30,6 +30,6 @@
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
-        "num_workers": 4,
-        "use_wandb": false
+        "num_workers": 10,
+        "use_wandb": true
     }

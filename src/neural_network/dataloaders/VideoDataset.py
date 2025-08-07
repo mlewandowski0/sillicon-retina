@@ -39,7 +39,7 @@ class VideoDatasetFromPictures(Dataset):
         #       - folder 2
 
         self.root = os.path.join(dirpath, split)
-        self.files = [os.path.join(self.root,x) for x in os.listdir(self.root)]
+        self.files = sorted([os.path.join(self.root,x) for x in os.listdir(self.root)])
         self.fps = global_fps
 
         if suffix is None:

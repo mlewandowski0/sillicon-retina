@@ -100,8 +100,22 @@ class Interpolator:
       x0, bbox_to_crop = _pad_to_align(x0, self._align)
       x1, _ = _pad_to_align(x1, self._align)
 
-    inputs = {'x0': x0, 'x1': x1, 'time': dt[..., np.newaxis]}
-    result = self._model(inputs, training=False)
+    time = tf.cast(dt, tf.float32)[None, :]  # shape (1,1)
+    x0 = tf.cast(x0, tf.float32)  # shape (1,H,W,3)
+    x1 = tf.cast(x1, tf.float32)  # shape (1,H,W,3)
+
+    # print(time.shape, x0.shape, x1.shape)
+    # results in : (1, 1) (1, 180, 240, 3) (1, 180, 240, 3)
+
+    inputs = {
+        'time': time,  # (B,1), float32
+        'x0': x0,  # (B,H,W,3), float32
+        'x1': x1,  # (B,H,W,3), float32
+    }
+
+    result = self._model(inputs, False)
+
+    #    result = self._model(inputs, training=False)
     forward_flow = result['forward_flow_pyramid'][0].numpy()
     backward_flow = result['backward_flow_pyramid'][0].numpy()
     image = result['image']
