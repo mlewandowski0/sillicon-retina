@@ -6,10 +6,10 @@
 #include <vector>
 
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
-#define CHECK_DEVICE(x, y) AT_ASSERTM(x.device().index() == y.device().index(), #x " and " #y " must be in same CUDA device")
+#define CHECK_CUDA(x)        TORCH_CHECK(x.is_cuda(),        #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x)  TORCH_CHECK(x.is_contiguous(),  #x " must be contiguous")
+#define CHECK_INPUT(x)       CHECK_CUDA(x);  CHECK_CONTIGUOUS(x)
+#define CHECK_DEVICE(x, y)   TORCH_CHECK(x.device() == y.device(), #x " and " #y " must be on the same device")
 
 /*
 Precompute the reference values and number of events between the reference values to read out easily after

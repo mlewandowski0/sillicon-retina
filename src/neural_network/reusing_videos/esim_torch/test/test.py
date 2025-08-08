@@ -17,8 +17,8 @@ if __name__ == "__main__":
     image_files = sorted(glob.glob("../esim_py/tests/data/images/images/*.png"))
     images = np.stack([cv2.imread(f, cv2.IMREAD_GRAYSCALE) for f in image_files])
     timestamps_s = np.genfromtxt("../esim_py/tests/data/images/timestamps.txt")
-    timestamps_ns = (timestamps_s * 1e9).astype("int64")
 
+    timestamps_ns = (timestamps_s * 1e9).astype("int64")
     log_images = np.log(images.astype("float32") / 255 + 1e-4)
 
     # generate torch tensors
@@ -29,6 +29,9 @@ if __name__ == "__main__":
 
     # generate events with GPU support
     print("Generating events")
+
+    print(log_images)
+    print(timestamps_ns)
     events = esim.forward(log_images, timestamps_ns)
 
     # render events 
