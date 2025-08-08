@@ -143,7 +143,7 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
         self.output_path = output_path
         self.save_mp4 = save_mp4
         self.bit_depth = bit_depth
-
+        self.data = []
         self._cache()
 
     def _write_mp4(self, frames_f32, out_path, fps):
@@ -184,10 +184,7 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
 
     def _cache(self):
 
-        # TODO: add some mechanism which will prevent the computation
-
-        pbar = tqdm.tqdm(range(len(self.upsamplingDataset)))
-
+        run_computation = True
         metadata = {"number_of_videos" : len(self.upsamplingDataset),
                     "bit_depth" : self.bit_depth,
                     "upsample_to_events" : self.upsamplingDataset.upsample_to_events,
@@ -195,26 +192,44 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                     "model_path" : self.upsamplingDataset.model_path,
                     }
 
-        with open(os.path.join(self.output_path, "metadata.json"), "w") as f:
-            json.dump(metadata, f, indent=4)
+        os.makedirs(os.path.join(self.output_path), exist_ok=True)
 
-        for i in pbar:
-            images, images_per_patches, timestamps = self.upsamplingDataset[i]
+        if os.path.exists(os.path.join(self.output_path, "metadata.json")):
+            read_metadata = {}
+            print("Found already existing metadata file")
+            with open(os.path.join(self.output_path, "metadata.json"), "r") as f:
+                read_metadata = json.load(f)
 
-            # shape (512, 180, 240, 3), dtype=float32
+            # if the metadata matches the current metadata, skip computation
+            if read_metadata == metadata:
+                print("keys in metadata are equal ! Skipping computation ...")
+                run_computation = False
 
-            params = {"images" : images_per_patches.tolist(),
-                      "timestamps" : timestamps.tolist(),
-                      "fps" : self.upsamplingDataset.videoDataset.fps}
-            root_folder = os.path.join(self.output_path, f"video_{i:05d}")
-            os.makedirs(root_folder, exist_ok=True)
 
-            with open(os.path.join(root_folder, "params.json"), "w") as f:
-                json.dump(params, f, indent=4)
+        if run_computation:
+            pbar = tqdm.tqdm(range(len(self.upsamplingDataset)))
 
-            if self.save_mp4:
-                mp4_path = os.path.join(root_folder, "video.mp4")
-                self._write_mp4(images, mp4_path, fps=params["fps"])
+
+            with open(os.path.join(self.output_path, "metadata.json"), "w") as f:
+                json.dump(metadata, f, indent=4)
+
+            for i in pbar:
+                images, images_per_patches, timestamps = self.upsamplingDataset[i]
+
+                # shape (512, 180, 240, 3), dtype=float32
+
+                params = {"images" : images_per_patches.tolist(),
+                          "timestamps" : timestamps.tolist(),
+                          "fps" : self.upsamplingDataset.videoDataset.fps}
+                root_folder = os.path.join(self.output_path, f"video_{i:05d}")
+                os.makedirs(root_folder, exist_ok=True)
+
+                with open(os.path.join(root_folder, "params.json"), "w") as f:
+                    json.dump(params, f, indent=4)
+
+                if self.save_mp4:
+                    mp4_path = os.path.join(root_folder, "video.mp4")
+                    self._write_mp4(images, mp4_path, fps=params["fps"])
 
 
 
@@ -250,4 +265,17 @@ if __name__ == "__main__":
                                          filename="videoDatasetUpsamplingHighFPSStiched.mp4")
 
     VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
-                                        output_path=os.path.join("src", "neural_network", "data", "upsampled"))
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
+
+    video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
+                                          split="validation",
+                                          global_fps=27,
+                                          suffix="frames")
+
+    upsampling_ds = VideoDatasetUpsampling(video_ds,
+                                           model_path=os.path.join("models", "film_net", "Style", "saved_model"),
+                                           upsample_to_events=True,
+                                           debug = debug)
+
+    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_validation"))
