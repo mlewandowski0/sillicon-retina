@@ -8,9 +8,8 @@ import json
 import esim_torch
 
 def events_to_voxels(x, y, t, p, t0, t1, H= 240, W = 180, B = 5, device="cuda"):
-        """Build a 5 x H x W voxel grid from the events whose timestamps lie in [t0, t1)"""
 
-        dt = (t1 - t0).float()  # ns
+        dt = (t1 - t0).float()
         if dt == 0:
             return torch.zeros(B, H, W, device=device, dtype=torch.float32)
 
@@ -57,8 +56,12 @@ def _load_video( path):
 class EventDatasetFromUpsampled(Dataset):
 
 
-    def __init__(self, directory, mode = "event"):
+    def __init__(self, directory,
+                       mode = "event",
+                       B = 5):
+
         self.directory = directory
+        self.B = B
 
         metadata_file = os.path.join(self.directory, "metadata.json")
         self.read_metadata = {}
@@ -73,6 +76,60 @@ class EventDatasetFromUpsampled(Dataset):
                                                refractory_period_ns=0)
 
 
+    def read_events_or_create(self, folder, properties):
+
+        event_file = os.path.join(folder, f"events_B={self.B}.npz")
+
+
+
+        frames = _load_video(os.path.join(folder, "video.mp4"))[..., 0]
+        timestamps = np.array(properties["timestamps"])
+
+        images = properties["images"]
+        fps = properties["fps"]
+
+        timestamps_ns = (timestamps * 1e9).astype("int64")
+        log_images = np.log(frames.astype("float32") / 255 + 1e-4)
+
+        # generate torch tensors
+        print("Loading data to GPU")
+        device = "cuda"
+        log_images = torch.from_numpy(log_images).to(device)
+        timestamps_ns = torch.from_numpy(timestamps_ns).to(device)
+
+        # generate events with GPU support
+        print("Generating events")
+        events = self.event_simulator.forward(log_images, timestamps_ns)
+        x, y, t, p = events['x'], events['y'], events['t'], events['p']
+
+        # build voxel grids
+        prev = 0
+        cnt = 0
+
+        raw_images = [frames[0]]
+        event_grids = []
+
+        for k in range(len(images) - 1):
+            # print(f"[{prev}, {prev + images[k]}]")
+            # print(f"[{timestamps[prev], timestamps[prev + images[k]]}] s")
+            next_idx = prev + images[k]
+            t0 = timestamps_ns[prev]
+            t1 = timestamps_ns[next_idx]
+
+            raw_images.append(frames[next_idx])
+            cnt += 1
+
+            prev = next_idx
+
+            mask = (t >= t0) & (t < t1)
+            event_grids.append(events_to_voxels(x[mask], y[mask], t[mask], p[mask],
+                                                t0, t1))
+
+        raw_images = np.array(raw_images)
+
+
+        return raw_images, event_grids
+
     def __getitem__(self, idx):
 
         folder = self.data_files[idx]
@@ -82,50 +139,6 @@ class EventDatasetFromUpsampled(Dataset):
             properties = json.load(f)
 
         if self.mode == "event":
-            frames  = _load_video(os.path.join(folder, "video.mp4"))[..., 0]
-            timestamps = np.array(properties["timestamps"])
-
-            images = properties["images"]
-            fps = properties["fps"]
-
-            timestamps_ns = (timestamps * 1e9).astype("int64")
-            log_images = np.log(frames.astype("float32") / 255 + 1e-4)
-
-            # generate torch tensors
-            print("Loading data to GPU")
-            device = "cuda"
-            log_images = torch.from_numpy(log_images).to(device)
-            timestamps_ns = torch.from_numpy(timestamps_ns).to(device)
-
-            # generate events with GPU support
-            print("Generating events")
-            events = self.event_simulator.forward(log_images, timestamps_ns)
-            x,y, t, p = events['x'], events['y'], events['t'], events['p']
-
-            # build voxel grids
-            prev = 0
-            cnt = 0
-
-            raw_images = [frames[0]]
-            event_grids = []
-
-            for k in range(len(images)-1):
-                # print(f"[{prev}, {prev + images[k]}]")
-                # print(f"[{timestamps[prev], timestamps[prev + images[k]]}] s")
-                next_idx = prev + images[k]
-                t0 = timestamps_ns[prev]
-                t1 = timestamps_ns[next_idx]
-
-                raw_images.append(frames[next_idx])
-                cnt += 1
-
-                prev = next_idx
-
-                mask = (t >= t0) & (t < t1)
-                event_grids.append(events_to_voxels(x[mask], y[mask], t[mask], p[mask],
-                                                    t0, t1))
-
-            raw_images = np.array(raw_images)
             return torch.Tensor(raw_images)/255., events, torch.stack(event_grids, dim=0)
 
 

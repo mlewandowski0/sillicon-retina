@@ -62,10 +62,11 @@ class VideoDatasetUpsampling(Dataset):
 
     def _upsample_adaptive(self, I0, I1, t0, t1, num_bisections=-1):
         if num_bisections == 0:
-            return [], []
+            return [], [], []
 
         dt = self.batch_dt = np.full(shape=(1,), fill_value=0.5, dtype=np.float32)
         image, F_0_1, F_1_0 = self.interpolation.interpolate(I0, I1, dt)
+        was_first = num_bisections < 0
 
         if num_bisections < 0:
             flow_mag_0_1_max = ((F_0_1 ** 2).sum(-1) ** .5).max()
@@ -73,14 +74,19 @@ class VideoDatasetUpsampling(Dataset):
             num_bisections = int(np.ceil(np.log(max([flow_mag_0_1_max, flow_mag_1_0_max]))/np.log(2)))
 
             if num_bisections == 0:
-                return [image[0]], [(t0 + t1) / 2]
+                return [image[0]], F_0_1, [(t0 + t1) / 2]
 
-        left_images, left_timestamps = self._upsample_adaptive(I0, image, t0, (t0+t1)/2, num_bisections=num_bisections-1)
-        right_images, right_timestamps = self._upsample_adaptive(image, I1, (t0+t1)/2, t1, num_bisections=num_bisections-1)
+        left_images, left_of, left_timestamps = self._upsample_adaptive(I0, image, t0, (t0+t1)/2, num_bisections=num_bisections-1)
+        right_images, right_of, right_timestamps = self._upsample_adaptive(image, I1, (t0+t1)/2, t1, num_bisections=num_bisections-1)
+
         timestamps = left_timestamps + [(t0+t1)/2] + right_timestamps
         images = left_images + [image[0]] + right_images
 
-        return images, timestamps
+        of_return = []
+        if was_first:
+            of_return = F_0_1
+
+        return images, of_return, timestamps
 
     def _upsample_optical_flow(self, datapoint):
 
@@ -89,6 +95,7 @@ class VideoDatasetUpsampling(Dataset):
 
         all_images = []
         all_timestamps = []
+        optical_flows = []
 
         if self.debug:
             pbar = tqdm.tqdm(range(len(images)-1))
@@ -103,10 +110,10 @@ class VideoDatasetUpsampling(Dataset):
             current_image = np.repeat(current_image[..., None], 3, axis=-1) / 255.
             next_image = np.repeat(next_image[..., None], 3, axis=-1) / 255.
 
-            total_frames, total_timestamps = self._upsample_adaptive(current_image,
-                                                                     next_image,
-                                                                     t0,
-                                                                     t1)
+            total_frames, optical_flow, total_timestamps = self._upsample_adaptive(current_image,
+                                                                                 next_image,
+                                                                                 t0,
+                                                                                 t1)
             total_frames = [current_image[0]] + total_frames
             timestamps = [t0] + total_timestamps
 
@@ -118,9 +125,10 @@ class VideoDatasetUpsampling(Dataset):
                 print(f"Generated : {len(total_frames)}")
             all_images.append(total_frames)
             all_timestamps.append(timestamps)
+            optical_flows.append(optical_flow)
 
         images_per_patch = [len(a) for a in all_images]
-        return np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps)
+        return np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
 
     def _upsample_to_fixed_framerate(self, x, new_framerate):
         pass
@@ -190,6 +198,8 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                     "upsample_to_events" : self.upsamplingDataset.upsample_to_events,
                     "new_framerate" : self.upsamplingDataset.new_framerate,
                     "model_path" : self.upsamplingDataset.model_path,
+                    "optical_flow_saved" : True,
+                    "optical_flow_name" : "optical_flow.npz"
                     }
 
         os.makedirs(os.path.join(self.output_path), exist_ok=True)
@@ -214,13 +224,15 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                 json.dump(metadata, f, indent=4)
 
             for i in pbar:
-                images, images_per_patches, timestamps = self.upsamplingDataset[i]
+                images, images_per_patches, timestamps, optical_flows = self.upsamplingDataset[i]
 
                 # shape (512, 180, 240, 3), dtype=float32
 
                 params = {"images" : images_per_patches.tolist(),
                           "timestamps" : timestamps.tolist(),
-                          "fps" : self.upsamplingDataset.videoDataset.fps}
+                          "fps" : self.upsamplingDataset.videoDataset.fps,
+                          "optical_flow_path" : "optical_flow.npz",}
+
                 root_folder = os.path.join(self.output_path, f"video_{i:05d}")
                 os.makedirs(root_folder, exist_ok=True)
 
@@ -231,6 +243,8 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                     mp4_path = os.path.join(root_folder, "video.mp4")
                     self._write_mp4(images, mp4_path, fps=params["fps"])
 
+                np.savez_compressed(os.path.join(root_folder, params["optical_flow_path"]),
+                                    optical_flow=optical_flows)
 
 
 
@@ -251,15 +265,29 @@ if __name__ == "__main__":
 
     original_images = video_ds[idx]
     x = upsampling_ds[idx]
-    images, images_per_patches, timestamps = x
+    images, images_per_patches, timestamps, optical_flows = x
+    np.savez_compressed(os.path.join("src", "prototyping", "opticalflow.npz"), optical_flows=optical_flows)
+
+    raw_images = []
+
+    prev = 0
+    for delta in images_per_patches:
+        raw_images.append(images[prev])
+        prev = prev + delta
+
+    raw_images.append(images[-1])
+
     print("shape of original_images ",len(original_images['images']))
     print(f"shape of images : {images.shape}")
     print(f"shape of timestamps : {timestamps.shape}")
     print(f"images_per_patches : {images_per_patches}")
     print(f"shape of images_per_patches : {images_per_patches.shape}")
     print("sum of images_per_patches : ",np.sum(images_per_patches))
+    print("Shape of Optical Flow : ", optical_flows.shape)
 
-    write_sequence_to_video(images, "videoDatasetUpsamplingHighFPSOnly.mp4")
+    write_sequence_to_video(images, os.path.join("src", "prototyping","videoDatasetUpsamplingHighFPSOnly.mp4"))
+    write_sequence_to_video(raw_images, os.path.join("src", "prototyping","videoDatasetUpsamplingOriginal.mp4"))
+
     write_sequence_and_original_to_video(upsampled=images, timestamps=timestamps,
                                          original=original_images["images"], original_fps=video_ds.fps,
                                          filename="videoDatasetUpsamplingHighFPSStiched.mp4")
