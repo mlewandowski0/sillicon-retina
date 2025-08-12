@@ -15,6 +15,8 @@ class EventDatasetFromUpsampled(Dataset):
     def __init__(self, directory,
                        mode = "event",
                        B = 5,
+                       contrast_threshold_neg = 0.2,
+                       contrast_threshold_pos = 0.2,
                        force_recomputing=False):
 
         self.directory = directory
@@ -29,41 +31,42 @@ class EventDatasetFromUpsampled(Dataset):
         self.mode = mode
         self.data_files = sorted([os.path.join(directory, el) for el in os.listdir(directory) if os.path.isdir(os.path.join(directory, el))])
 
-        self.event_simulator = esim_torch.ESIM(contrast_threshold_neg=0.2,
-                                               contrast_threshold_pos=0.2,
+        self.event_simulator = esim_torch.ESIM(contrast_threshold_neg=contrast_threshold_neg,
+                                               contrast_threshold_pos=contrast_threshold_pos,
                                                refractory_period_ns=0)
 
 
     def read_events_or_create(self, folder, properties):
 
-        event_file = os.path.join(folder, f"events_B={self.B}.npz")
-        event_grids_loaded = False
+        event_grid_file = os.path.join(folder, f"events_B={self.B}.npz")
+        raw_frames_file = os.path.join(folder, f"raw_frames.npz")
+        events_file     = os.path.join(folder, f"events.npz")
 
-        frames = load_video(os.path.join(folder, "video.mp4"))[..., 0]
+        event_grids_loaded = False
         timestamps = np.array(properties["timestamps"])
         images = properties["images"]
         fps = properties["fps"]
 
-        if os.path.exists(event_file) and not self.force_recomputing:
-            event_file_npy = np.load(event_file)
+        if (os.path.exists(event_grid_file) and os.path.exists(raw_frames_file) and os.path.exists(events_file)
+                and not self.force_recomputing):
+
+            event_file_npy = np.load(event_grid_file)
             event_grids = torch.Tensor(event_file_npy["event_grids"])
 
-            raw_images = [frames[0]]
-            prev = 0
+            raw_images = np.load(raw_frames_file)["raw_images"]
 
-            for k in range(len(images) - 1):
-                next_idx = prev + images[k]
-                raw_images.append(frames[next_idx])
+            events = np.load(events_file)
+            events = {"x" : torch.Tensor(events['x']),
+                      "y" : torch.Tensor(events['y']),
+                      't' : torch.Tensor(events['t']),
+                      'p' : torch.Tensor(events['p'])}
 
-            events = {"x" : torch.Tensor(event_file_npy['x']),
-                      "y" : torch.Tensor(event_file_npy['y']),
-                      't' : torch.Tensor(event_file_npy['t']),
-                      'p' : torch.Tensor(event_file_npy['p'])}
-
-            result = {"images" : np.array(raw_images),
+            result = {"images" : raw_images,
                       "events" : events,
                       "event_grid" : event_grids}
         else:
+            frames = load_video(os.path.join(folder, "video.mp4"))[..., 0]
+
             event_grids = []
 
             timestamps_ns = (timestamps * 1e9).astype("int64")
@@ -72,6 +75,9 @@ class EventDatasetFromUpsampled(Dataset):
             device = "cuda"
             log_images = torch.from_numpy(log_images).to(device)
             timestamps_ns = torch.from_numpy(timestamps_ns).to(device)
+
+            # reset the event simulation
+            self.event_simulator.reset()
 
             # generate events with GPU support
             events = self.event_simulator.forward(log_images, timestamps_ns)
@@ -105,7 +111,9 @@ class EventDatasetFromUpsampled(Dataset):
 
 
             event_grids = torch.stack(event_grids, dim=0)
-            np.savez_compressed(event_file, event_grids=event_grids.cpu(), x=x.cpu(), y=y.cpu(), t=t.cpu(), p=p.cpu())
+            np.savez_compressed(event_grid_file, event_grids=event_grids.cpu())
+            np.savez_compressed(events_file, x=x.cpu(), y=y.cpu(), t=t.cpu(), p=p.cpu())
+            np.savez_compressed(raw_frames_file,raw_images=raw_images)
 
             result = {"images" : np.array(raw_images),
                       "events" : events,
@@ -131,9 +139,6 @@ class EventDatasetFromUpsampled(Dataset):
         if self.mode == "event":
             datapoint = self.read_events_or_create(folder, properties)
 
-
-
-
         if "images" in datapoint:
             datapoint["images"] = torch.Tensor(datapoint['images']) / 255.
 
@@ -147,12 +152,15 @@ class EventDatasetFromUpsampled(Dataset):
 
 
 if __name__ == "__main__":
+    import time
     ds = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
                                    mode="event",
                                    B=5,
-                                   force_recomputing=False)
+                                   force_recomputing=True)
 
-    datapoint = ds[0]
+
+    datapoint = ds[4]
+
     imgs, events, grids = datapoint["images"], datapoint["events"], datapoint["event_grid"]
     optical_flow = datapoint["optical_flow"]
 

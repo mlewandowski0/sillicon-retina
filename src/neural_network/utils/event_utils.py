@@ -137,7 +137,7 @@ def render_events_video(
                 u, v = flow[y, x]
                 x2 = int(round(x + scale * u))
                 y2 = int(round(y + scale * v))
-                cv2.arrowedLine(out, (x, y), (x2, y2), (255,255,255), 1, tipLength=0.3)
+                cv2.arrowedLine(out, (x, y), (x2, y2), (255,0,0), 1, tipLength=0.3)
         return out
 
     writer = imageio.get_writer(output_path, format="FFMPEG", fps=fps, codec="libx264", quality=7)
@@ -147,9 +147,12 @@ def render_events_video(
         pos, neg = collapse_bins(ev_slice)
         ev_overlay, ev_mask = events_to_overlay(pos, neg)
 
+
         # overlay ONLY on event pixels (no global tint)
         merged = base.copy()
-        merged[ev_mask] = cv2.addWeighted(base[ev_mask], 1.0 - alpha, ev_overlay[ev_mask], alpha, 0)
+
+        if np.sum(ev_mask) != 0:
+            merged[ev_mask] = cv2.addWeighted(base[ev_mask], 1.0 - alpha, ev_overlay[ev_mask], alpha, 0)
 
         flow = flows[t]
         flow_rgb = flow_to_rgb_hsv(flow)
@@ -160,10 +163,10 @@ def render_events_video(
         grid = np.concatenate([top, bottom], axis=0)
 
         # light labels
-        cv2.putText(grid, "Image", (10,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240,240,240), 1, cv2.LINE_AA)
-        cv2.putText(grid, "Image + Events", (10+base.shape[1],20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240,240,240), 1, cv2.LINE_AA)
+        cv2.putText(grid, "Image", (10,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
+        cv2.putText(grid, "Image + Events", (10+base.shape[1],20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
         cv2.putText(grid, "Flow (HSV)", (10, 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240,240,240), 1, cv2.LINE_AA)
-        cv2.putText(grid, "Quiver", (10+flow_rgb.shape[1], 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240,240,240), 1, cv2.LINE_AA)
+        cv2.putText(grid, "Quiver", (10+flow_rgb.shape[1], 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
 
         writer.append_data(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
     writer.close()
