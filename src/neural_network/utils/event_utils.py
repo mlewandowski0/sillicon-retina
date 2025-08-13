@@ -4,6 +4,11 @@ import numpy as np
 import imageio
 import cv2
 
+def to_numpy(x):
+    if isinstance(x, torch.Tensor):
+        return x.detach().cpu().numpy()
+    return np.asarray(x)
+
 def flow_to_rgb(flow):
     W, H, _ = flow.shape
     hsv = np.zeros((W, H, 3), dtype=np.float32)
@@ -39,9 +44,9 @@ def render_events_video(
     """
     # grab tensors
 
-    rgbs   = np.array(datapoint["frames"].cpu())
-    events = np.array(datapoint["grids"].cpu())
-    flows  = np.array(datapoint["optical_flows"].cpu())
+    rgbs = to_numpy(datapoint["frames"])
+    events = to_numpy(datapoint["grids"])
+    flows = to_numpy(datapoint["optical_flows"])
 
     T = rgbs.shape[0]
     H = rgbs.shape[-3] if rgbs.ndim == 4 else rgbs.shape[-2]
@@ -69,11 +74,16 @@ def render_events_video(
     has_polarity = (events.shape[1] == 2)
     B = events.shape[2] if events.ndim == 5 else 1
 
-    # global robust min/max to avoid flicker
-    ev_vals = events.reshape(-1)
-    vmin = np.percentile(ev_vals, 1)
-    vmax = np.percentile(ev_vals, 99)
-    if vmax <= vmin: vmax = vmin + 1.0
+    ev_vals = np.asarray(events, dtype=np.float32).ravel()
+    finite = np.isfinite(ev_vals)
+    if finite.any():
+        vmin, vmax = np.nanpercentile(ev_vals[finite], [1, 99])
+        if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+            vmin, vmax = float(np.nanmin(ev_vals[finite])), float(np.nanmax(ev_vals[finite]))
+            if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+                vmin, vmax = 0.0, 1.0
+    else:
+        vmin, vmax = 0.0, 1.0
 
     # simple increasing weights across bins (newer bins brighter)
     if B > 1:
@@ -120,7 +130,7 @@ def render_events_video(
 
     # flow helpers ------------------------------------------------------
     def flow_to_rgb_hsv(flow):
-        u, v = flow[...,0], flow[...,1]
+        u, v = flow[0], flow[1]
         mag, ang = cv2.cartToPolar(u, v, angleInDegrees=False)
         hsv = np.zeros((H,W,3), dtype=np.uint8)
         hsv[...,0] = np.uint8((ang * 180/np.pi) / 2.0)  # 0..180
@@ -135,7 +145,7 @@ def render_events_video(
         xs = range(step//2, W, step)
         for y in ys:
             for x in xs:
-                u, v = flow[y, x]
+                u, v = flow[0, y, x], flow[1, y, x]
                 x2 = int(round(x + scale * u))
                 y2 = int(round(y + scale * v))
                 cv2.arrowedLine(out, (x, y), (x2, y2), (255,0,0), 1, tipLength=0.3)
@@ -174,11 +184,11 @@ def render_events_video(
 
 def events_to_voxels(x, y, t, p, t0, t1, H= 180, W = 240, B = 5, device="cuda"):
 
-        dt = (t1 - t0).float()
+        dt = float(t1 - t0)
         if dt == 0:
             return torch.zeros(B, H, W, device=device, dtype=torch.float32)
 
-        t_star = (t.float() - t0.float()) / dt * (B - 1)
+        t_star = (t - t0) / dt * (B - 1)
 
         b0 = torch.floor(t_star).long()
         w1 = t_star - b0.float()

@@ -16,8 +16,8 @@ from src.neural_network.networks.FIRE_network import FIRE_network
 from src.neural_network.networks.PerceptualLoss import PerceptualLoss
 from src.neural_network.networks.TemporalConsistencyLoss import TemporalConsistencyLoss
 from src.neural_network.dataloaders.ECOCODatasetWrapper import ECOCODatasetWrapper
-from src.neural_network.dataloaders.ECOCO_dataset_file_cached import ECOCO_dataset_file_cached
 from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint  # <-- add this
+from src.neural_network.dataloaders.EventDatasetFromUpsampled import EventDatasetFromUpsampled
 
 from torch.optim.lr_scheduler import StepLR
 
@@ -263,12 +263,11 @@ if __name__ == "__main__":
                          out_sigmoid=config["out_sigmoid"]).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
 
-    train_base = ECOCO_dataset_file_cached(
-        root=config['data_root'],
-        split='train',
-        cache_folder=config['cache_folder'] + "_train",
-        limit=config.get('train_limit', None),
-    )
+    train_base = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
+                                   mode="event",
+                                   B=5,
+                                   force_recomputing=False,
+                                   limit=config["train_limit"])
 
     train_dataset = ECOCODatasetWrapper(
         train_base,
@@ -277,12 +276,11 @@ if __name__ == "__main__":
         augment=config["augment"],
     )
 
-    val_base = ECOCO_dataset_file_cached(
-        root=config['data_root'],
-        split='validation',
-        cache_folder=config['cache_folder'] + "_validation",
-        limit=config.get('val_limit', None)
-    )
+    val_base = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
+                                   mode="event",
+                                   B=5,
+                                   force_recomputing=False,
+                                   limit=config["val_limit"])
 
     val_dataset = ECOCODatasetWrapper(
         val_base,
