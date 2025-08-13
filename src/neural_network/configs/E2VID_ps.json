@@ -10,7 +10,7 @@
         "skip_frames": 1,
 
         "batch_size": 8,
-        "num_epochs": 1000,
+        "num_epochs": 250,
         "learning_rate": 1e-4,
         "weight_decay": 1e-4,
         "lr_step_size": 10,

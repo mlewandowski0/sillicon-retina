@@ -17,7 +17,8 @@ class EventDatasetFromUpsampled(Dataset):
                        B = 5,
                        contrast_threshold_neg = 0.2,
                        contrast_threshold_pos = 0.2,
-                       force_recomputing=False):
+                       force_recomputing=False,
+                        limit=-1):
 
         self.directory = directory
         self.B = B
@@ -30,6 +31,9 @@ class EventDatasetFromUpsampled(Dataset):
 
         self.mode = mode
         self.data_files = sorted([os.path.join(directory, el) for el in os.listdir(directory) if os.path.isdir(os.path.join(directory, el))])
+
+        if limit is not None and limit > 0:
+            self.data_files = self.data_files[:limit]
 
         self.event_simulator = esim_torch.ESIM(contrast_threshold_neg=contrast_threshold_neg,
                                                contrast_threshold_pos=contrast_threshold_pos,
@@ -61,9 +65,9 @@ class EventDatasetFromUpsampled(Dataset):
                       't' : torch.Tensor(events['t']),
                       'p' : torch.Tensor(events['p'])}
 
-            result = {"images" : raw_images,
+            result = {"frames" : raw_images,
                       "events" : events,
-                      "event_grid" : event_grids}
+                      "grids" : event_grids}
         else:
             frames = load_video(os.path.join(folder, "video.mp4"))[..., 0]
 
@@ -115,15 +119,15 @@ class EventDatasetFromUpsampled(Dataset):
             np.savez_compressed(events_file, x=x.cpu(), y=y.cpu(), t=t.cpu(), p=p.cpu())
             np.savez_compressed(raw_frames_file,raw_images=raw_images)
 
-            result = {"images" : np.array(raw_images),
+            result = {"frames" : np.array(raw_images),
                       "events" : events,
-                      "event_grid" : event_grids}
+                      "grids" : event_grids}
 
         optical_flow_file = os.path.join(folder, "optical_flow.npz")
 
         if os.path.exists(optical_flow_file):
             optical_flow = np.load(optical_flow_file)["optical_flow"]
-            result["optical_flow"] = torch.Tensor(optical_flow)
+            result["optical_flows"] = optical_flow.transpose((0, 3, 1, 2))
 
         return result
 
@@ -139,9 +143,8 @@ class EventDatasetFromUpsampled(Dataset):
         if self.mode == "event":
             datapoint = self.read_events_or_create(folder, properties)
 
-        if "images" in datapoint:
-            datapoint["images"] = torch.Tensor(datapoint['images']) / 255.
-
+        # if "frames" in datapoint:
+        #     datapoint["frames"] = torch.Tensor(datapoint['frames']) / 255.
 
         return datapoint
 
@@ -161,8 +164,8 @@ if __name__ == "__main__":
 
     datapoint = ds[4]
 
-    imgs, events, grids = datapoint["images"], datapoint["events"], datapoint["event_grid"]
-    optical_flow = datapoint["optical_flow"]
+    imgs, events, grids = datapoint["frames"], datapoint["events"], datapoint["grids"]
+    optical_flow = datapoint["optical_flows"]
 
 
     x,y, t, p = events['x'], events['y'], events['t'], events['p']

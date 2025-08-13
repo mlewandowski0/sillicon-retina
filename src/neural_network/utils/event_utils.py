@@ -38,9 +38,10 @@ def render_events_video(
       optical_flow: [T,H,W,2]   (u,v)
     """
     # grab tensors
-    rgbs   = np.array(datapoint["images"].cpu())
-    events = np.array(datapoint["event_grid"].cpu())
-    flows  = np.array(datapoint["optical_flow"].cpu())
+
+    rgbs   = np.array(datapoint["frames"].cpu())
+    events = np.array(datapoint["grids"].cpu())
+    flows  = np.array(datapoint["optical_flows"].cpu())
 
     T = rgbs.shape[0]
     H = rgbs.shape[-3] if rgbs.ndim == 4 else rgbs.shape[-2]

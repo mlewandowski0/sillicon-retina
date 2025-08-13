@@ -104,8 +104,16 @@ class ECOCODatasetWrapper(Dataset):
             flows_sequence = None
         
         # Normalize frames to [0, 1]
-        frames = frames.astype(np.float32) / 255.0
-        grids = grids.astype(np.float32)
+
+        if isinstance(frames, np.ndarray):
+           frames = frames.astype(np.float32) / 255.0
+        else:
+            frames = frames.float() / 255.
+
+        if isinstance(grids, np.ndarray):
+            grids = grids.astype(np.float32)
+        else:
+            grids = grids.float()
 
         # Decide whether to include initial frames (no history case)
         include_initial = np.random.random() < self.include_initial_frames_prob
