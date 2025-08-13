@@ -13,8 +13,8 @@
 
         "data_root": "src/neural_network/data/ecoco_depthmaps_test",
         "cache_folder": "src/neural_network/data/ecoco_cache",
-        "train_limit": 20,
-        "val_limit": 20,
+        "train_limit": null,
+        "val_limit": null,
         "skip_frames": 1,
 
         "batch_size": 2,

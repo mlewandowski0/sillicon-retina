@@ -10,7 +10,8 @@ import shutil
 
 if __name__ == "__main__":
 
-    limit = 50
+    limit = 1000
+    visualization_limit = 200
     visualization_folder = "visualizations"
 
     ds = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
@@ -26,6 +27,7 @@ if __name__ == "__main__":
 
     ds.force_recomputing = False
 
+    pbar = tqdm(range(min(len(ds) ,visualization_limit)))
     os.makedirs(visualization_folder, exist_ok=True)
 
     for i in pbar:
