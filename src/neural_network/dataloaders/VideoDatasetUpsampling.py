@@ -130,10 +130,69 @@ class VideoDatasetUpsampling(Dataset):
         images_per_patch = [len(a) for a in all_images]
         return np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
 
-    def _upsample_to_fixed_framerate(self, x, new_framerate):
-        pass
+    def _upsample_to_fixed_framerate(self, datapoint, new_framerate):        
+        images = datapoint['images']
+        fps = datapoint['fps']
 
-    def __len__(self):
+        all_images = []
+        all_timestamps = []
+        optical_flows = []
+        
+        new_dt = 1.0 / new_framerate
+        img_dt = 1.0 / fps
+
+        T = len(images)
+        video_time = img_dt * T
+        
+        
+        if self.debug:
+            pbar = tqdm.tqdm(np.arange(0, video_time, new_dt))
+        else:
+            pbar = np.arange(0, video_time, new_dt)
+
+        i = 0
+        image_deltas = []
+        prev = 0
+        
+        for time in pbar:
+            
+            if time >= (i + 1) * img_dt:
+                i += 1
+                image_deltas.append(prev)
+                prev = 0 
+
+            original_frame_time        = i * img_dt
+            next_original_frame_time   = (i + 1) * img_dt              
+
+            dt_rel = (time - original_frame_time) / (next_original_frame_time - original_frame_time)
+            dt_rel = np.array([dt_rel], dtype=np.float32)
+
+            print(f"interpolating {time}s  inbetween {original_frame_time} , {next_original_frame_time}")            
+            print(f"dt_rel : {dt_rel}")
+            prev += 1
+            
+            I0 = images[i]
+            I1 = images[i+1] if i + 1 < T else images[i]           
+            
+            # preprocess the images to fit the shape 
+            I0 = np.repeat(I0[None, :, :, None] / 255.0, axis=-1, repeats=3)
+            I1 = np.repeat(I1[None, :, :, None] / 255.0, axis=-1, repeats=3) 
+            
+            if time == original_frame_time:
+                all_images.append(I0)
+                all_timestamps.append(time)
+                continue
+
+            interpolated_image, F_0_1, F_1_0 = self.interpolation.interpolate(I0, I1, dt_rel)
+            all_images.append(interpolated_image)
+            all_timestamps.append(time)
+        
+        image_deltas.append(prev) 
+        
+        return np.concatenate(all_images, axis=0), np.array(image_deltas), np.array(all_timestamps)
+
+        
+    def __len__(self): 
         return len(self.videoDataset)
 
     def __getitem__(self, idx):
@@ -146,11 +205,12 @@ class VideoDatasetUpsampling(Dataset):
 
 class VideoDatasetUpsamplingCacheToFolder(Dataset):
     def __init__(self, upsamplingDataset, output_path,
-                 save_mp4=True, bit_depth=8):
+                 save_mp4=True, save_suffix="", bit_depth=8):
         self.upsamplingDataset = upsamplingDataset
         self.output_path = output_path
         self.save_mp4 = save_mp4
         self.bit_depth = bit_depth
+        self.save_suffix = save_suffix
         self.data = []
         self._cache()
 
@@ -240,7 +300,7 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                     json.dump(params, f, indent=4)
 
                 if self.save_mp4:
-                    mp4_path = os.path.join(root_folder, "video.mp4")
+                    mp4_path = os.path.join(root_folder, f"video_{self.save_suffix}.mp4")
                     self._write_mp4(images, mp4_path, fps=params["fps"])
 
                 np.savez_compressed(os.path.join(root_folder, params["optical_flow_path"]),

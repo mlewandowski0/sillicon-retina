@@ -32,7 +32,8 @@ def render_events_video(
     on_color=(0,0,255),    # ON events (B,G,R)
     off_color=(255,0,0), # OFF events (B,G,R)
     quiver_step=16,        # stride for arrows
-    quiver_scale=1.5       # arrow length scale
+    quiver_scale=1.5,       # arrow length scale
+    flows_on=True           # turn off the optical flow
 ):
     """
     Expects datapoint with:
@@ -46,7 +47,9 @@ def render_events_video(
 
     rgbs = to_numpy(datapoint["frames"])
     events = to_numpy(datapoint["grids"])
-    flows = to_numpy(datapoint["optical_flows"])
+
+    if flows_on:
+        flows = to_numpy(datapoint["optical_flows"])
 
     T = rgbs.shape[0]
     H = rgbs.shape[-3] if rgbs.ndim == 4 else rgbs.shape[-2]
@@ -165,19 +168,26 @@ def render_events_video(
         if np.sum(ev_mask) != 0:
             merged[ev_mask] = cv2.addWeighted(base[ev_mask], 1.0 - alpha, ev_overlay[ev_mask], alpha, 0)
 
-        flow = flows[t]
-        flow_rgb = flow_to_rgb_hsv(flow)
-        quiv = draw_quiver(base, flow, step=quiver_step, scale=quiver_scale)
+        if flows_on:
+            flow = flows[t]
+            flow_rgb = flow_to_rgb_hsv(flow)
+            quiv = draw_quiver(base, flow, step=quiver_step, scale=quiver_scale)
 
         top = np.concatenate([base, merged], axis=1)
-        bottom = np.concatenate([flow_rgb, quiv], axis=1)
-        grid = np.concatenate([top, bottom], axis=0)
+        
+        if flows_on:
+            bottom = np.concatenate([flow_rgb, quiv], axis=1)
+            grid = np.concatenate([top, bottom], axis=0)
+        else:
+            grid = top
 
         # light labels
         cv2.putText(grid, "Image", (10,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
         cv2.putText(grid, "Image + Events", (10+base.shape[1],20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
-        cv2.putText(grid, "Flow (HSV)", (10, 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240,240,240), 1, cv2.LINE_AA)
-        cv2.putText(grid, "Quiver", (10+flow_rgb.shape[1], 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
+     
+        if flows_on:
+            cv2.putText(grid, "Flow (HSV)", (10, 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240,240,240), 1, cv2.LINE_AA)
+            cv2.putText(grid, "Quiver", (10+flow_rgb.shape[1], 20+top.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1, cv2.LINE_AA)
 
         writer.append_data(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
     writer.close()

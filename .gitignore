@@ -15,3 +15,4 @@ wandb/*
 *.pyc
 *.pth
 *.sillicon_retina_python_simulation
+models/*

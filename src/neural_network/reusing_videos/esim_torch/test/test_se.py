@@ -24,12 +24,12 @@ if __name__ == "__main__":
     imgs = torch.stack(imgs, dim=0).to("cuda:0")
 
     config = SiliconRetinaConfig()
-    model = SiliconRetinaVerboseFloatCUDA(config, width=imgs.shape[1], height=imgs.shape[2], T=T)
+    model = SiliconRetinaVerboseFloatCUDA(config, height=imgs.shape[1], width=imgs.shape[2], T=T)
     
     # Run the model
-    fires = model.forward(imgs)
-
+    fires_on, fires_off = model.forward(imgs)
+    print(fires_on.shape)
 
     with imageio.get_writer('test.mp4', fps=30) as writer:
-        for frame in fires:
+        for frame in fires_on:
             writer.append_data(255 * frame.cpu().numpy())

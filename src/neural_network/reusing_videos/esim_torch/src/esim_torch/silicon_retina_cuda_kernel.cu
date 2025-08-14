@@ -5,11 +5,19 @@
 #include <vector>
 #include <vector>
 #include "enums.h"
+#include <torch/extension.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAGuard.h>
 
-#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
-#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
-#define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
-#define CHECK_DEVICE(x, y) AT_ASSERTM(x.device().index() == y.device().index(), #x " and " #y " must be in same CUDA device")
+#define CHECK_CUDA(x) TORCH_CHECK((x).is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK((x).is_contiguous(), #x " must be contiguous")
+#define CHECK_INPUT(x)       \
+    do                       \
+    {                        \
+        CHECK_CUDA(x);       \
+        CHECK_CONTIGUOUS(x); \
+    } while (0)
+#define CHECK_DEVICE(x, y) TORCH_CHECK(x.device() == y.device(), #x " and " #y " must be on the same device")
 
 #define CUDA_CHECK(call)                                                          \
     do                                                                            \
@@ -268,15 +276,24 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
 __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
                          float *__restrict__ V_BIP,
                          float *__restrict__ HPF2,
-                         float *__restrict__ I_Gang,
-                         float *__restrict__ V_LIF,
-                         unsigned char *__restrict__ fired,
+                         float *__restrict__ I_Gang_on,
+                         float *__restrict__ I_Gang_off,
+                         float *__restrict__ V_LIF_on,
+                         float *__restrict__ V_LIF_off,
+                         unsigned char *__restrict__ fired_on,
+                         unsigned char *__restrict__ fired_off,
                          const float *__restrict__ I_OPL,
-                         int lin_t_offset, int prev_offset, int curr_offset,
+                         int lin_t_offset,
+                         int prev_offset,
+                         int curr_offset,
                          int H, int W,
-                         float p1, float I_bias,
+                         float p1,
+                         float I_bias_on,
+                         float I_bias_off,
                          float p2, float p3,
-                         float U_rest, float U_th, float U_reset)
+                         float U_rest_on, float U_rest_off,
+                         float U_th_on, float U_th_off,
+                         float U_reset_on, float U_reset_off)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int HW = H * W;
@@ -296,14 +313,22 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
 
     HPF2[curr] = V_BIP[curr] - V_BIP[prev];
 
-    I_Gang[curr] = fmaxf(HPF2[curr], 0.0f) + I_bias;
+    I_Gang_on[curr] = fmaxf(HPF2[curr], 0.0f) + I_bias_on;
+    I_Gang_off[curr] = fmaxf(-HPF2[curr], 0.0f) + I_bias_off;
 
-    V_LIF[curr] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
-                                   V_LIF[prev], p2, p3,
-                                   I_Gang[curr], U_rest);
+    V_LIF_on[curr] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
+                                      V_LIF_on[prev], p2, p3,
+                                      I_Gang_on[curr], U_rest_on);
 
-    fired[lin_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
-                                    V_LIF[curr], U_th, U_reset);
+    V_LIF_off[curr] = compute_next_LIF(LIF_INTEGRATION_MODE::LIF_INTEGRATION_1,
+                                       V_LIF_off[prev], p2, p3,
+                                       I_Gang_off[curr], U_rest_off);
+
+    fired_on[lin_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
+                                       V_LIF_on[curr], U_th_on, U_reset_on);
+
+    fired_off[lin_idx] = fire_and_reset(LIF_RESET_MODE::LIF_SUBTRACT_RESET,
+                                        V_LIF_off[curr], U_th_off, U_reset_off);
 }
 
 void run_silicon_retina_model(
@@ -317,9 +342,12 @@ void run_silicon_retina_model(
     float *d_Q_V_BIP,
     float *d_V_BIP_LPF,
     float *d_HPF2,
-    float *d_I_Gang,
-    float *d_V_LIF,
-    unsigned char *d_fired,
+    float *d_I_Gang_on,
+    float *d_I_Gang_off,
+    float *d_V_LIF_on,
+    float *d_V_LIF_off,
+    unsigned char *d_fired_on,
+    unsigned char *d_fired_off,
 
     int T, int H, int W,
     float alpha1,
@@ -329,12 +357,16 @@ void run_silicon_retina_model(
     float G_A_zero,
     float lambda_A,
     float p1,
-    float I_bias,
+    float I_bias_on,
+    float I_bias_off,
     float p2,
     float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+    float U_rest_on,
+    float U_rest_off,
+    float U_th_on,
+    float U_th_off,
+    float U_reset_on,
+    float U_reset_off)
 {
     const int HW = H * W;
     int device;
@@ -374,33 +406,53 @@ void run_silicon_retina_model(
                                   V_BIP_LPF_alpha);
 
         /* ---------- kernel C ---------- */
-        k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2,
-                                  d_I_Gang, d_V_LIF, d_fired,
+        k_stageC<<<grid, block>>>(d_V_BIP_LPF,
+                                  d_V_BIP,
+                                  d_HPF2,
+                                  d_I_Gang_on,
+                                  d_I_Gang_off,
+                                  d_V_LIF_on,
+                                  d_V_LIF_off,
+                                  d_fired_on,
+                                  d_fired_off,
                                   d_I_OPL,
-                                  lin_t_offset, prev_offset, curr_offset, H, W,
-                                  p1, I_bias, p2, p3,
-                                  U_rest, U_th, U_reset);
+                                  lin_t_offset,
+                                  prev_offset,
+                                  curr_offset,
+                                  H, W,
+                                  p1,
+                                  I_bias_on,
+                                  I_bias_off,
+                                  p2, p3,
+                                  U_rest_on, U_rest_off,
+                                  U_th_on, U_th_off,
+                                  U_reset_on, U_reset_off);
     }
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
+std::vector<torch::Tensor> forward_silicon_retina_verbose(
+    const torch::Tensor &d_images,
+    torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1,
+    torch::Tensor &d_BLURRED2,
+    torch::Tensor &d_LPF2,
+    torch::Tensor &d_I_OPL,
+    torch::Tensor &d_V_BIP,
+    torch::Tensor &d_Q_V_BIP,
+    torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2,
+    
+    torch::Tensor &d_I_Gang_on,
+    torch::Tensor &d_I_Gang_off,
 
-torch::Tensor forward_silicon_retina_verbose(
-    const torch::Tensor& d_images,
-    torch::Tensor& d_LPF1,
-    torch::Tensor& d_HPF1,
-    torch::Tensor& d_BLURRED2,
-    torch::Tensor& d_LPF2,
-    torch::Tensor& d_I_OPL,
-    torch::Tensor& d_V_BIP,
-    torch::Tensor& d_Q_V_BIP,
-    torch::Tensor& d_V_BIP_LPF,
-    torch::Tensor& d_HPF2,
-    torch::Tensor& d_I_Gang,
-    torch::Tensor& d_V_LIF,
-    torch::Tensor& d_fired,
+    torch::Tensor &d_V_LIF_on,
+    torch::Tensor &d_V_LIF_off,
+
+    torch::Tensor &d_fired_on,
+    torch::Tensor &d_fired_off,
 
     int T, int H, int W,
     float alpha1,
@@ -410,62 +462,94 @@ torch::Tensor forward_silicon_retina_verbose(
     float G_A_zero,
     float lambda_A,
     float p1,
-    float I_bias,
+    float I_bias_on,
+    float I_bias_off,
     float p2,
     float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+    float U_rest_on,
+    float U_rest_off,
+
+    float U_th_on,
+    float U_th_off,
+
+    float U_reset_on,
+    float U_reset_off)
 {
-  CHECK_INPUT(d_images);
-  CHECK_INPUT(d_LPF1);
-  CHECK_INPUT(d_HPF1);
-  CHECK_INPUT(d_BLURRED2);
-  CHECK_INPUT(d_LPF2);
-  CHECK_INPUT(d_I_OPL);
-  CHECK_INPUT(d_V_BIP);
-  CHECK_INPUT(d_Q_V_BIP);
-  CHECK_INPUT(d_V_BIP_LPF);
-  CHECK_INPUT(d_HPF2);
-  CHECK_INPUT(d_I_Gang);
-  CHECK_INPUT(d_V_LIF);
-  CHECK_INPUT(d_fired);
-  CHECK_DEVICE(d_images, d_LPF1);
-  CHECK_DEVICE(d_images, d_HPF1);
-  CHECK_DEVICE(d_images, d_BLURRED2);
-  CHECK_DEVICE(d_images, d_LPF2);
-  CHECK_DEVICE(d_images, d_I_OPL);
-  CHECK_DEVICE(d_images, d_V_BIP);
-  CHECK_DEVICE(d_images, d_Q_V_BIP);
-  CHECK_DEVICE(d_images, d_V_BIP_LPF);
-  CHECK_DEVICE(d_images, d_HPF2);
-  CHECK_DEVICE(d_images, d_I_Gang);
-  CHECK_DEVICE(d_images, d_V_LIF);
-  CHECK_DEVICE(d_images, d_fired);
+    CHECK_INPUT(d_images);
+    CHECK_INPUT(d_LPF1);
+    CHECK_INPUT(d_HPF1);
+    CHECK_INPUT(d_BLURRED2);
+    CHECK_INPUT(d_LPF2);
+    CHECK_INPUT(d_I_OPL);
+    CHECK_INPUT(d_V_BIP);
+    CHECK_INPUT(d_Q_V_BIP);
+    CHECK_INPUT(d_V_BIP_LPF);
+    CHECK_INPUT(d_HPF2);
+    CHECK_INPUT(d_I_Gang_on);
+    CHECK_INPUT(d_I_Gang_off);
 
+    CHECK_INPUT(d_V_LIF_on);
+    CHECK_INPUT(d_V_LIF_off);
 
-  run_silicon_retina_model(d_images.data<float>(),
-                           d_LPF1.data<float>(),
-                           d_HPF1.data<float>(),
-                           d_BLURRED2.data<float>(),
-                           d_LPF2.data<float>(),
-                           d_I_OPL.data<float>(),
-                           d_V_BIP.data<float>(),
-                           d_Q_V_BIP.data<float>(),
-                           d_V_BIP_LPF.data<float>(),
-                           d_HPF2.data<float>(),
-                           d_I_Gang.data<float>(),
-                           d_V_LIF.data<float>(),
-                           d_fired.data<unsigned char>(),
+    CHECK_INPUT(d_fired_on);
+    CHECK_INPUT(d_fired_off);
 
-                           T, H, W,
-                           alpha1, alpha2, V_BIP_LPF_alpha,
-                           lambda_OPL, G_A_zero, lambda_A,
-                           p1, I_bias, p2, p3,
-                           U_rest, U_th, U_reset);
-  
+    CHECK_DEVICE(d_images, d_LPF1);
+    CHECK_DEVICE(d_images, d_HPF1);
+    CHECK_DEVICE(d_images, d_BLURRED2);
+    CHECK_DEVICE(d_images, d_LPF2);
+    CHECK_DEVICE(d_images, d_I_OPL);
+    CHECK_DEVICE(d_images, d_V_BIP);
+    CHECK_DEVICE(d_images, d_Q_V_BIP);
+    CHECK_DEVICE(d_images, d_V_BIP_LPF);
+    CHECK_DEVICE(d_images, d_HPF2);
+    CHECK_DEVICE(d_images, d_I_Gang_on);
+    CHECK_DEVICE(d_images, d_I_Gang_off);
 
-  return d_fired;
+    CHECK_DEVICE(d_images, d_V_LIF_on);
+    CHECK_DEVICE(d_images, d_V_LIF_off);
+
+    CHECK_DEVICE(d_images, d_fired_on);
+    CHECK_DEVICE(d_images, d_fired_off);
+
+    run_silicon_retina_model(d_images.data<float>(),
+                             d_LPF1.data<float>(),
+                             d_HPF1.data<float>(),
+                             d_BLURRED2.data<float>(),
+                             d_LPF2.data<float>(),
+                             d_I_OPL.data<float>(),
+                             d_V_BIP.data<float>(),
+                             d_Q_V_BIP.data<float>(),
+                             d_V_BIP_LPF.data<float>(),
+                             d_HPF2.data<float>(),
+                             d_I_Gang_on.data<float>(),
+                             d_I_Gang_off.data<float>(),
+                             d_V_LIF_on.data<float>(),
+                             d_V_LIF_off.data<float>(),
+                             d_fired_on.data<unsigned char>(),
+                             d_fired_off.data<unsigned char>(),
+
+                             T, H, W,
+                             alpha1, alpha2,
+                             V_BIP_LPF_alpha,
+                             lambda_OPL,
+                             G_A_zero,
+                             lambda_A,
+                             p1,
+                             I_bias_on,
+                             I_bias_off,
+                             p2, p3,
+
+                             U_rest_on,
+                             U_rest_off,
+
+                             U_th_on,
+                             U_th_off,
+
+                             U_reset_on,
+                             U_reset_off);
+
+    return {d_fired_on, d_fired_off};
 }
 
 void run_silicon_retina_model_fired_only(
@@ -479,9 +563,12 @@ void run_silicon_retina_model_fired_only(
     float *d_Q_V_BIP,
     float *d_V_BIP_LPF,
     float *d_HPF2,
-    float *d_I_Gang,
-    float *d_V_LIF,
-    unsigned char *d_fired,
+    float *d_I_Gang_on,
+    float *d_I_Gang_off,
+    float *d_V_LIF_on,
+    float *d_V_LIF_off,
+    unsigned char *d_fired_on,
+    unsigned char *d_fired_off,
 
     int T, int H, int W,
     float alpha1,
@@ -491,12 +578,16 @@ void run_silicon_retina_model_fired_only(
     float G_A_zero,
     float lambda_A,
     float p1,
-    float I_bias,
+    float I_bias_on,
+    float I_bias_off,
     float p2,
     float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+    float U_rest_on,
+    float U_rest_off,
+    float U_th_on,
+    float U_th_off,
+    float U_reset_on,
+    float U_reset_off)
 {
     const int HW = H * W;
     int device;
@@ -539,32 +630,50 @@ void run_silicon_retina_model_fired_only(
                                   V_BIP_LPF_alpha);
 
         /* ---------- kernel C ---------- */
-        k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2,
-                                  d_I_Gang, d_V_LIF, d_fired,
+        k_stageC<<<grid, block>>>(d_V_BIP_LPF,
+                                  d_V_BIP,
+                                  d_HPF2,
+                                  d_I_Gang_on,
+                                  d_I_Gang_off,
+                                  d_V_LIF_on,
+                                  d_V_LIF_off,
+                                  d_fired_on,
+                                  d_fired_off,
                                   d_I_OPL,
-                                  lin_t_offset, prev_offset, curr_offset, H, W,
-                                  p1, I_bias, p2, p3,
-                                  U_rest, U_th, U_reset);
+                                  lin_t_offset,
+                                  prev_offset,
+                                  curr_offset,
+                                  H, W,
+                                  p1,
+                                  I_bias_on,
+                                  I_bias_off,
+                                  p2, p3,
+                                  U_rest_on, U_rest_off,
+                                  U_th_on, U_th_off,
+                                  U_reset_on, U_reset_off);
     }
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-torch::Tensor forward_silicon_retina(
-    const torch::Tensor& d_images,
-    torch::Tensor& d_LPF1,
-    torch::Tensor& d_HPF1,
-    torch::Tensor& d_BLURRED2,
-    torch::Tensor& d_LPF2,
-    torch::Tensor& d_I_OPL,
-    torch::Tensor& d_V_BIP,
-    torch::Tensor& d_Q_V_BIP,
-    torch::Tensor& d_V_BIP_LPF,
-    torch::Tensor& d_HPF2,
-    torch::Tensor& d_I_Gang,
-    torch::Tensor& d_V_LIF,
-    torch::Tensor& d_fired,
+std::vector<torch::Tensor> forward_silicon_retina(
+    const torch::Tensor &d_images,
+    torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1,
+    torch::Tensor &d_BLURRED2,
+    torch::Tensor &d_LPF2,
+    torch::Tensor &d_I_OPL,
+    torch::Tensor &d_V_BIP,
+    torch::Tensor &d_Q_V_BIP,
+    torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2,
+    torch::Tensor &d_I_Gang_on,
+    torch::Tensor &d_I_Gang_off,
+    torch::Tensor &d_V_LIF_on,
+    torch::Tensor &d_V_LIF_off,
+    torch::Tensor &d_fired_on,
+    torch::Tensor &d_fired_off,
 
     int T, int H, int W,
     float alpha1,
@@ -574,41 +683,57 @@ torch::Tensor forward_silicon_retina(
     float G_A_zero,
     float lambda_A,
     float p1,
-    float I_bias,
+    float I_bias_on,
+    float I_bias_off,
     float p2,
     float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+    float U_rest_on,
+    float U_rest_off,
+
+    float U_th_on,
+    float U_th_off,
+
+    float U_reset_on,
+    float U_reset_off)
 {
-  CHECK_INPUT(d_images);
-  CHECK_INPUT(d_LPF1);
-  CHECK_INPUT(d_HPF1);
-  CHECK_INPUT(d_BLURRED2);
-  CHECK_INPUT(d_LPF2);
-  CHECK_INPUT(d_I_OPL);
-  CHECK_INPUT(d_V_BIP);
-  CHECK_INPUT(d_Q_V_BIP);
-  CHECK_INPUT(d_V_BIP_LPF);
-  CHECK_INPUT(d_HPF2);
-  CHECK_INPUT(d_I_Gang);
-  CHECK_INPUT(d_V_LIF);
-  CHECK_INPUT(d_fired);
-  CHECK_DEVICE(d_images, d_LPF1);
-  CHECK_DEVICE(d_images, d_HPF1);
-  CHECK_DEVICE(d_images, d_BLURRED2);
-  CHECK_DEVICE(d_images, d_LPF2);
-  CHECK_DEVICE(d_images, d_I_OPL);
-  CHECK_DEVICE(d_images, d_V_BIP);
-  CHECK_DEVICE(d_images, d_Q_V_BIP);
-  CHECK_DEVICE(d_images, d_V_BIP_LPF);
-  CHECK_DEVICE(d_images, d_HPF2);
-  CHECK_DEVICE(d_images, d_I_Gang);
-  CHECK_DEVICE(d_images, d_V_LIF);
-  CHECK_DEVICE(d_images, d_fired);
+    CHECK_INPUT(d_images);
+    CHECK_INPUT(d_LPF1);
+    CHECK_INPUT(d_HPF1);
+    CHECK_INPUT(d_BLURRED2);
+    CHECK_INPUT(d_LPF2);
+    CHECK_INPUT(d_I_OPL);
+    CHECK_INPUT(d_V_BIP);
+    CHECK_INPUT(d_Q_V_BIP);
+    CHECK_INPUT(d_V_BIP_LPF);
+    CHECK_INPUT(d_HPF2);
+    CHECK_INPUT(d_I_Gang_on);
+    CHECK_INPUT(d_I_Gang_off);
 
+    CHECK_INPUT(d_V_LIF_on);
+    CHECK_INPUT(d_V_LIF_off);
 
-  run_silicon_retina_model_fired_only(d_images.data<float>(),
+    CHECK_INPUT(d_fired_on);
+    CHECK_INPUT(d_fired_off);
+
+    CHECK_DEVICE(d_images, d_LPF1);
+    CHECK_DEVICE(d_images, d_HPF1);
+    CHECK_DEVICE(d_images, d_BLURRED2);
+    CHECK_DEVICE(d_images, d_LPF2);
+    CHECK_DEVICE(d_images, d_I_OPL);
+    CHECK_DEVICE(d_images, d_V_BIP);
+    CHECK_DEVICE(d_images, d_Q_V_BIP);
+    CHECK_DEVICE(d_images, d_V_BIP_LPF);
+    CHECK_DEVICE(d_images, d_HPF2);
+    CHECK_DEVICE(d_images, d_I_Gang_on);
+    CHECK_DEVICE(d_images, d_I_Gang_off);
+
+    CHECK_DEVICE(d_images, d_V_LIF_on);
+    CHECK_DEVICE(d_images, d_V_LIF_off);
+
+    CHECK_DEVICE(d_images, d_fired_on);
+    CHECK_DEVICE(d_images, d_fired_off);
+
+    run_silicon_retina_model_fired_only(d_images.data<float>(),
                                         d_LPF1.data<float>(),
                                         d_HPF1.data<float>(),
                                         d_BLURRED2.data<float>(),
@@ -618,18 +743,34 @@ torch::Tensor forward_silicon_retina(
                                         d_Q_V_BIP.data<float>(),
                                         d_V_BIP_LPF.data<float>(),
                                         d_HPF2.data<float>(),
-                                        d_I_Gang.data<float>(),
-                                        d_V_LIF.data<float>(),
-                                        d_fired.data<unsigned char>(),
+                                        d_I_Gang_on.data<float>(),
+                                        d_I_Gang_off.data<float>(),
+                                        d_V_LIF_on.data<float>(),
+                                        d_V_LIF_off.data<float>(),
+                                        d_fired_on.data<unsigned char>(),
+                                        d_fired_off.data<unsigned char>(),
 
                                         T, H, W,
-                                        alpha1, alpha2, V_BIP_LPF_alpha,
-                                        lambda_OPL, G_A_zero, lambda_A,
-                                        p1, I_bias, p2, p3,
-                                        U_rest, U_th, U_reset);
-  
+                                        alpha1, alpha2,
+                                        V_BIP_LPF_alpha,
+                                        lambda_OPL,
+                                        G_A_zero,
+                                        lambda_A,
+                                        p1,
+                                        I_bias_on,
+                                        I_bias_off,
+                                        p2, p3,
 
-  return d_fired;
+                                        U_rest_on,
+                                        U_rest_off,
+
+                                        U_th_on,
+                                        U_th_off,
+
+                                        U_reset_on,
+                                        U_reset_off);
+
+    return {d_fired_on, d_fired_off};
 }
 
 void run_silicon_retina_model_online(
@@ -643,9 +784,12 @@ void run_silicon_retina_model_online(
     float *d_Q_V_BIP,
     float *d_V_BIP_LPF,
     float *d_HPF2,
-    float *d_I_Gang,
-    float *d_V_LIF,
-    unsigned char *d_fired,
+    float *d_I_Gang_on,
+    float *d_I_Gang_off,
+    float *d_V_LIF_on,
+    float *d_V_LIF_off,
+    unsigned char *d_fired_on,
+    unsigned char *d_fired_off,
 
     int curr_t, int H, int W,
     float alpha1,
@@ -655,12 +799,16 @@ void run_silicon_retina_model_online(
     float G_A_zero,
     float lambda_A,
     float p1,
-    float I_bias,
+    float I_bias_on,
+    float I_bias_off,
     float p2,
     float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+    float U_rest_on,
+    float U_rest_off,
+    float U_th_on,
+    float U_th_off,
+    float U_reset_on,
+    float U_reset_off)
 {
     const int HW = H * W;
     int device;
@@ -688,45 +836,63 @@ void run_silicon_retina_model_online(
 
     /* ---------- kernel A ---------- */
     k_stageA<<<grid, block>>>(d_imgs,
-                                  d_LPF1, d_HPF1, d_LPF2,
-                                  lin_t_offset, prev_offset, curr_offset,
-                                  H, W, alpha1, alpha2);
+                              d_LPF1, d_HPF1, d_LPF2,
+                              lin_t_offset, prev_offset, curr_offset,
+                              H, W, alpha1, alpha2);
 
     /* ---------- kernel B ---------- */
     k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
-                                  d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
-                                  lin_t_offset, prev_offset, curr_offset, H, W,
-                                  lambda_OPL, G_A_zero, lambda_A,
-                                  V_BIP_LPF_alpha);
+                              d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
+                              lin_t_offset, prev_offset, curr_offset, H, W,
+                              lambda_OPL, G_A_zero, lambda_A,
+                              V_BIP_LPF_alpha);
 
     /* ---------- kernel C ---------- */
-    k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2,
-                                  d_I_Gang, d_V_LIF, d_fired,
-                                  d_I_OPL,
-                                  lin_t_offset, prev_offset, curr_offset, H, W,
-                                  p1, I_bias, p2, p3,
-                                  U_rest, U_th, U_reset);
-                        
+    k_stageC<<<grid, block>>>(d_V_BIP_LPF,
+                              d_V_BIP,
+                              d_HPF2,
+                              d_I_Gang_on,
+                              d_I_Gang_off,
+                              d_V_LIF_on,
+                              d_V_LIF_off,
+                              d_fired_on,
+                              d_fired_off,
+                              d_I_OPL,
+                              lin_t_offset,
+                              prev_offset,
+                              curr_offset,
+                              H, W,
+                              p1,
+                              I_bias_on,
+                              I_bias_off,
+                              p2, p3,
+                              U_rest_on, U_rest_off,
+                              U_th_on, U_th_off,
+                              U_reset_on, U_reset_off);
+
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-torch::Tensor forward_silicon_retina_online(
-    const torch::Tensor& d_images,
-    torch::Tensor& d_LPF1,
-    torch::Tensor& d_HPF1,
-    torch::Tensor& d_BLURRED2,
-    torch::Tensor& d_LPF2,
-    torch::Tensor& d_I_OPL,
-    torch::Tensor& d_V_BIP,
-    torch::Tensor& d_Q_V_BIP,
-    torch::Tensor& d_V_BIP_LPF,
-    torch::Tensor& d_HPF2,
-    torch::Tensor& d_I_Gang,
-    torch::Tensor& d_V_LIF,
-    torch::Tensor& d_fired,
+std::vector<torch::Tensor> forward_silicon_retina_online(
+    const torch::Tensor &d_images,
+    torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1,
+    torch::Tensor &d_BLURRED2,
+    torch::Tensor &d_LPF2,
+    torch::Tensor &d_I_OPL,
+    torch::Tensor &d_V_BIP,
+    torch::Tensor &d_Q_V_BIP,
+    torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2,
+    torch::Tensor &d_I_Gang_on,
+    torch::Tensor &d_I_Gang_off,
+    torch::Tensor &d_V_LIF_on,
+    torch::Tensor &d_V_LIF_off,
+    torch::Tensor &d_fired_on,
+    torch::Tensor &d_fired_off,
 
-    int curr_t, int H, int W,
+    int T, int H, int W,
     float alpha1,
     float alpha2,
     float V_BIP_LPF_alpha,
@@ -734,65 +900,98 @@ torch::Tensor forward_silicon_retina_online(
     float G_A_zero,
     float lambda_A,
     float p1,
-    float I_bias,
+    float I_bias_on,
+    float I_bias_off,
     float p2,
     float p3,
-    float U_rest,
-    float U_th,
-    float U_reset)
+    float U_rest_on,
+    float U_rest_off,
+
+    float U_th_on,
+    float U_th_off,
+
+    float U_reset_on,
+    float U_reset_off)
 {
-  CHECK_INPUT(d_images);
-  CHECK_INPUT(d_LPF1);
-  CHECK_INPUT(d_HPF1);
-  CHECK_INPUT(d_BLURRED2);
-  CHECK_INPUT(d_LPF2);
-  CHECK_INPUT(d_I_OPL);
-  CHECK_INPUT(d_V_BIP);
-  CHECK_INPUT(d_Q_V_BIP);
-  CHECK_INPUT(d_V_BIP_LPF);
-  CHECK_INPUT(d_HPF2);
-  CHECK_INPUT(d_I_Gang);
-  CHECK_INPUT(d_V_LIF);
-  CHECK_INPUT(d_fired);
-  CHECK_DEVICE(d_images, d_LPF1);
-  CHECK_DEVICE(d_images, d_HPF1);
-  CHECK_DEVICE(d_images, d_BLURRED2);
-  CHECK_DEVICE(d_images, d_LPF2);
-  CHECK_DEVICE(d_images, d_I_OPL);
-  CHECK_DEVICE(d_images, d_V_BIP);
-  CHECK_DEVICE(d_images, d_Q_V_BIP);
-  CHECK_DEVICE(d_images, d_V_BIP_LPF);
-  CHECK_DEVICE(d_images, d_HPF2);
-  CHECK_DEVICE(d_images, d_I_Gang);
-  CHECK_DEVICE(d_images, d_V_LIF);
-  CHECK_DEVICE(d_images, d_fired);
+    CHECK_INPUT(d_images);
+    CHECK_INPUT(d_LPF1);
+    CHECK_INPUT(d_HPF1);
+    CHECK_INPUT(d_BLURRED2);
+    CHECK_INPUT(d_LPF2);
+    CHECK_INPUT(d_I_OPL);
+    CHECK_INPUT(d_V_BIP);
+    CHECK_INPUT(d_Q_V_BIP);
+    CHECK_INPUT(d_V_BIP_LPF);
+    CHECK_INPUT(d_HPF2);
+    CHECK_INPUT(d_I_Gang_on);
+    CHECK_INPUT(d_I_Gang_off);
 
+    CHECK_INPUT(d_V_LIF_on);
+    CHECK_INPUT(d_V_LIF_off);
 
-  run_silicon_retina_model_online(d_images.data<float>(),
-                                        d_LPF1.data<float>(),
-                                        d_HPF1.data<float>(),
-                                        d_BLURRED2.data<float>(),
-                                        d_LPF2.data<float>(),
-                                        d_I_OPL.data<float>(),
-                                        d_V_BIP.data<float>(),
-                                        d_Q_V_BIP.data<float>(),
-                                        d_V_BIP_LPF.data<float>(),
-                                        d_HPF2.data<float>(),
-                                        d_I_Gang.data<float>(),
-                                        d_V_LIF.data<float>(),
-                                        d_fired.data<unsigned char>(),
+    CHECK_INPUT(d_fired_on);
+    CHECK_INPUT(d_fired_off);
 
-                                        curr_t, H, W,
-                                        alpha1, alpha2, V_BIP_LPF_alpha,
-                                        lambda_OPL, G_A_zero, lambda_A,
-                                        p1, I_bias, p2, p3,
-                                        U_rest, U_th, U_reset);
-  
+    CHECK_DEVICE(d_images, d_LPF1);
+    CHECK_DEVICE(d_images, d_HPF1);
+    CHECK_DEVICE(d_images, d_BLURRED2);
+    CHECK_DEVICE(d_images, d_LPF2);
+    CHECK_DEVICE(d_images, d_I_OPL);
+    CHECK_DEVICE(d_images, d_V_BIP);
+    CHECK_DEVICE(d_images, d_Q_V_BIP);
+    CHECK_DEVICE(d_images, d_V_BIP_LPF);
+    CHECK_DEVICE(d_images, d_HPF2);
+    CHECK_DEVICE(d_images, d_I_Gang_on);
+    CHECK_DEVICE(d_images, d_I_Gang_off);
 
-  return d_fired;
+    CHECK_DEVICE(d_images, d_V_LIF_on);
+    CHECK_DEVICE(d_images, d_V_LIF_off);
+
+    CHECK_DEVICE(d_images, d_fired_on);
+    CHECK_DEVICE(d_images, d_fired_off);
+
+    run_silicon_retina_model_online(d_images.data<float>(),
+                                    d_LPF1.data<float>(),
+                                    d_HPF1.data<float>(),
+                                    d_BLURRED2.data<float>(),
+                                    d_LPF2.data<float>(),
+                                    d_I_OPL.data<float>(),
+                                    d_V_BIP.data<float>(),
+                                    d_Q_V_BIP.data<float>(),
+                                    d_V_BIP_LPF.data<float>(),
+                                    d_HPF2.data<float>(),
+                                    d_I_Gang_on.data<float>(),
+                                    d_I_Gang_off.data<float>(),
+                                    d_V_LIF_on.data<float>(),
+                                    d_V_LIF_off.data<float>(),
+                                    d_fired_on.data<unsigned char>(),
+                                    d_fired_off.data<unsigned char>(),
+
+                                    T, H, W,
+                                    alpha1, alpha2,
+                                    V_BIP_LPF_alpha,
+                                    lambda_OPL,
+                                    G_A_zero,
+                                    lambda_A,
+                                    p1,
+                                    I_bias_on,
+                                    I_bias_off,
+                                    p2, p3,
+
+                                    U_rest_on,
+                                    U_rest_off,
+
+                                    U_th_on,
+                                    U_th_off,
+
+                                    U_reset_on,
+                                    U_reset_off);
+
+     return {d_fired_on, d_fired_off};
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+{
     m.def("forward_silicon_retina_verbose", &forward_silicon_retina_verbose, "run silicon retina model and save the outputs for every layer (most useful for debugging!)");
     m.def("forward_silicon_retina", &forward_silicon_retina, "run silicon retina model and save only the fired events");
     m.def("forward_silicon_retina_online", &forward_silicon_retina_online, "run silicon retina model online and save only the fired events, however this is done frame by frame (useful for streaming data)");
