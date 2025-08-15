@@ -161,7 +161,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                 "p": torch.as_tensor(p_np),
             }
             result = {
-                "frames": frames_np,  # keep as numpy (cheap, contiguous)
+                "frames": frames_np['raw_images'],  # keep as numpy (cheap, contiguous)
                 "events": events,
                 "grids": event_grids,  # half precision on load
             }
@@ -294,7 +294,7 @@ if __name__ == "__main__":
     import time
     ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
                                    B=5,
-                                   force_recomputing=True)
+                                   force_recomputing=False)
 
 
     datapoint = ds[0]
