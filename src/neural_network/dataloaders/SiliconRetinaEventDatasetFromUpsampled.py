@@ -71,7 +71,6 @@ def to_bool_numpy(x):
 class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
     def __init__(self, directory,
-                       mode = "event",
                        B = 5,
                        height=180,
                        width=240,
@@ -83,7 +82,6 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                        grids_dtype=np.float16):
 
         self.directory = directory
-        self.mode = mode
         self.B = B
         self.force_recomputing = force_recomputing
         self.device = device
@@ -284,10 +282,8 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         folder = self.data_files[idx]
         props = self.properties[idx]
 
-        if self.mode == "event":
-            return self._read_events_or_create(folder, props)
-        else:
-            raise NotImplementedError("")
+        return self._read_events_or_create(folder, props)
+
 
 
     def __len__(self):
@@ -297,12 +293,11 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 if __name__ == "__main__":
     import time
     ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
-                                   mode="event",
                                    B=5,
                                    force_recomputing=True)
 
 
-    datapoint = ds[4]
+    datapoint = ds[0]
 
     imgs, events, grids = datapoint["frames"], datapoint["events"], datapoint["grids"]
     optical_flow = datapoint["optical_flows"]
