@@ -12,6 +12,62 @@ import hashlib
 from src.neural_network.dataloaders.utils import _mk_cache_paths_SE, _memmap_load, _save_cached_npy
 from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaFloatCUDAOnline
 
+
+"""
+        METADATA LOOKS LIKE 
+        
+        
+        {
+            "raw_images": "raw_images.npz",
+            "fps": 27,
+            "optical_flow_path": "optical_flow.npz",
+            "new_images_per_pair_FF": [....]
+            "timestamps_FF": [....]
+            "new_images_per_pair_OF": [....]
+            "timestamps_OF": [....]
+        }
+"""
+
+
+def bitmaps_to_voxel_grid(fired_on, fired_off, ts_ns):
+    
+    T, H, W = fired_on.shape 
+    HW = H * W
+    # linearize once 
+    on_lin = fired_on.view(T, -1).nonzero(as_tuple=False).cpu()
+    off_lin = fired_off.view(T, -1).nonzero(as_tuple=False).cpu()
+
+    def unpack(t_idx):
+        t  = ts_ns.index_select(0, t_idx[:,0])
+        i  = t_idx[:,1]
+        y  = (i // W).to(torch.int32)
+        x  = (i %  W).to(torch.int32)
+        return x, y, t
+
+    x_on,  y_on,  t_on  = unpack(on_lin)
+    x_off, y_off, t_off = unpack(off_lin)
+
+    p_on  = torch.ones_like(x_on,  dtype=torch.int8)
+    p_off = -torch.ones_like(x_off, dtype=torch.int8)
+
+    x = torch.cat([x_on,  x_off],  dim=0)
+    y = torch.cat([y_on,  y_off],  dim=0)
+    t = torch.cat([t_on,  t_off],  dim=0)
+    p = torch.cat([p_on,  p_off],  dim=0)
+
+    order = torch.argsort(t, stable=True)
+    return x[order], y[order], t[order], p[order]
+
+# Convert to numpy bool arrays with shape (T, H, W)
+def to_bool_numpy(x):
+    # x can be: torch.Tensor [T,H,W], list of tensors [H,W], or numpy
+    if isinstance(x, (list, tuple)):
+        x = [xi.detach().cpu().numpy() if hasattr(xi, "detach") else np.asarray(xi) for xi in x]
+        x = np.stack(x, axis=0)
+    else:
+        x = x.detach().cpu().numpy() if hasattr(x, "detach") else np.asarray(x)
+    return x.astype(bool)
+
 class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
     def __init__(self, directory,
@@ -123,57 +179,60 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
         # slow path ( first time read and data cacheing)
         frames = self._load_video_gray(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))  # (N, H, W), uint8
-        timestamps = np.asarray(properties["timestamps"], dtype=np.float64)
-        images = properties["images"]  # list of counts per segment
+        timestamps = np.asarray(properties["timestamps_FF"], dtype=np.float64)
+        images = properties["new_images_per_pair_FF"]  # list of counts per segment
         timestamps_ns = (timestamps * 1e9).astype("int64")
 
         # Log intensities on GPU
-        log_images = np.log(frames.astype("float32") / 255.0 + 1e-4)
-        log_images = torch.from_numpy(log_images).to(self.device, non_blocking=True)
-        timestamps_ns_t = torch.from_numpy(timestamps_ns).to(self.device, non_blocking=True)
+        frames = frames.astype("float32") / 255.0 + 1e-4
+        frames = torch.from_numpy(frames).to(self.device, non_blocking=True)
+        timestamps_ns_t = torch.from_numpy(timestamps_ns).cpu()
+
+        # load the raw_frames
+        raw_frames = np.load(os.path.join(folder, "raw_images.npz"))['raw_images'] / 255.
 
         # reset + simulate events
-        self.event_simulator.reset()
-        events = self.event_simulator.forward(log_images, timestamps_ns_t)
-        x, y, t, p = events["x"], events["y"], events["t"], events["p"]  # GPU tensors
+        self.simulator.reset()
 
-        # images: list of counts per segment (as in your original code)
-        imgs_np = np.asarray(images, dtype=np.int64)
+        positive, negative = [], []
+        T, H, W = frames.shape
+        
+        self.simulator.reset()
+        for t in range(1, T+1, 1):
 
-        # cumulative frame counts; cum_full has length len(images)
-        cum_full = np.cumsum(imgs_np, dtype=np.int64)  # [im0, im0+im1, ..., sum(images)]
-        # boundaries used by your original loop: [0, im0, im0+im1, ..., im0+...+im_{K-2}]
-        frame_idxs = np.concatenate(([0], cum_full[:-1]))  # len = len(images)
+            input = frames[t-1][None]
+            p, n = self.simulator(input, t)
+            positive.append((p.clone()[0]))
+            negative.append((n.clone()[0]))
 
-        # gather timestamp bounds at those frame indices -> contiguous int64, 1-D
-        idxs = torch.from_numpy(frame_idxs).to(timestamps_ns_t.device)
-        t_bounds = timestamps_ns_t.index_select(0, idxs).contiguous()
-
-        # sanity: ensure monotonic nondecreasing; if not, fix or skip
-        if not torch.all(t_bounds[1:] >= t_bounds[:-1]):
-            # if the dataset can contain non-monotonic timestamps, sort them (rare)
-            perm = torch.argsort(t_bounds)
-            t_bounds = t_bounds[perm]
-
-        # ensure event timestamps are 1-D, int64 and sorted
-        assert t.dtype == torch.int64 and t.dim() == 1
-        # (ESIM outputs sorted t; if unsure: t, order = torch.sort(t); x,y,p = x[order], y[order], p[order])
-
-        # compute cuts on GPU; right=False == 'left' to mimic [t0, t1)
-        # We want K = len(images)-1 intervals => use adjacent pairs from t_bounds
-        lefts = torch.searchsorted(t, t_bounds[:-1], right=False)  # start indices
-        rights = torch.searchsorted(t, t_bounds[1:], right=False)  # end indices
+        positive = torch.stack(positive, dim=0)
+        negative = torch.stack(negative, dim=0)
+        
+        x,y,t, p = bitmaps_to_voxel_grid(fired_on=positive.cpu(), fired_off=negative.cpu(), ts_ns=timestamps_ns_t)
+    
+        raw_frames_fps = properties["fps"]
+        raw_frames_dt = 1 / raw_frames_fps
+        t_bounds = []
+        
+        
+        for i in range(len(raw_frames) - 1):
+            t_bounds.append([i * raw_frames_dt * 1e9, (i+1) * raw_frames_dt * 1e9])
+        
+        
+        t_bounds = torch.Tensor(t_bounds)
+        boundaries = torch.searchsorted(t, t_bounds, right=False)  # start indices
 
         grids = []
-        raw_images = frames[frame_idxs]  # length len(images), same as your original
 
-        for k in range(lefts.numel()):
-            s = int(lefts[k].item())
-            e = int(rights[k].item())
+        for k in range(len(boundaries)):
+            s, e = boundaries[k]
+            s = int(s.item())
+            e = int(e.item())
 
-            # skip degenerate spans (no events or zero/negative duration)
-            t0 = int(t_bounds[k].item())
-            t1 = int(t_bounds[k + 1].item())
+            # skip degenerate spans (no events or zero/negative duration)        
+            t0, t1 = t_bounds[k]
+            t0 = t0.item()
+            t1 = t1.item()
             if e <= s or t1 <= t0:
                 continue
 
@@ -183,14 +242,14 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             # H, W = frames.shape[-2], frames.shape[-1]
             # xk = xk.clamp_(0, W-1); yk = yk.clamp_(0, H-1)
 
-            g = events_to_voxels(xk, yk, tk, pk, t0, t1)
+            g = events_to_voxels(xk, yk, tk, pk, t0, t1, device=x.device, H=H, W=W)
             grids.append(g)
 
         event_grids = torch.stack(grids, dim=0)
 
         # write caches
         # cast & move to CPU arrays only once, right before saving
-        _save_cached_npy(paths["frames"], raw_images.astype(np.uint8))
+        _save_cached_npy(paths["frames"], raw_frames.astype(np.uint8))
         _save_cached_npy(paths["grids"], event_grids.detach().to("cpu").to(torch.float16).numpy())
 
         # Compact events to smaller dtypes on disk
@@ -201,7 +260,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
         # Return in the same shapes/types you expect
         result = {
-            "frames": raw_images,                                 # np.uint8
+            "frames": raw_frames,                                 # np.uint8
             "events": {
                 "x": x.to("cpu"),
                 "y": y.to("cpu"),
@@ -237,7 +296,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
 if __name__ == "__main__":
     import time
-    ds = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
+    ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
                                    mode="event",
                                    B=5,
                                    force_recomputing=True)
