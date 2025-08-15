@@ -9,7 +9,7 @@ import esim_torch
 import matplotlib
 from src.neural_network.utils.event_utils import *
 import hashlib
-from .utils import _mk_cache_paths_events, _memmap_load, _save_cached_npy
+from src.neural_network.dataloaders.utils import _mk_cache_paths_events, _memmap_load, _save_cached_npy
 
 
 class EventDatasetFromUpsampled(Dataset):
@@ -91,7 +91,8 @@ class EventDatasetFromUpsampled(Dataset):
             grids_np = _memmap_load(paths['grids'])
 
             # (T+1, H, W) uint8
-            frames_np = _memmap_load(paths['frames'])
+            raw_frames = np.load(os.path.join(folder, "raw_images.npz"))['raw_images'] / 255.
+            raw_frames = raw_frames[1:]
 
             x_np = _memmap_load(paths["x"])  # uint16
             y_np = _memmap_load(paths["y"])  # uint16
@@ -108,7 +109,7 @@ class EventDatasetFromUpsampled(Dataset):
                 "p": torch.as_tensor(p_np),
             }
             result = {
-                "frames": frames_np,  # keep as numpy (cheap, contiguous)
+                "frames": raw_frames,  # keep as numpy (cheap, contiguous)
                 "events": events,
                 "grids": event_grids,  # half precision on load
             }
@@ -166,7 +167,8 @@ class EventDatasetFromUpsampled(Dataset):
         rights = torch.searchsorted(t, t_bounds[1:], right=False)  # end indices
 
         grids = []
-        raw_images = frames[frame_idxs]  # length len(images), same as your original
+        raw_frames = np.load(os.path.join(folder, "raw_images.npz"))['raw_images'] / 255.
+        raw_frames = raw_frames[1:]
 
         for k in range(lefts.numel()):
             s = int(lefts[k].item())
@@ -191,7 +193,6 @@ class EventDatasetFromUpsampled(Dataset):
 
         # write caches
         # cast & move to CPU arrays only once, right before saving
-        _save_cached_npy(paths["frames"], raw_images.astype(np.uint8))
         _save_cached_npy(paths["grids"], event_grids.detach().to("cpu").to(torch.float16).numpy())
 
         # Compact events to smaller dtypes on disk
@@ -202,7 +203,7 @@ class EventDatasetFromUpsampled(Dataset):
 
         # Return in the same shapes/types you expect
         result = {
-            "frames": raw_images,                                 # np.uint8
+            "frames": raw_frames,                                 # np.uint8
             "events": {
                 "x": x.to("cpu"),
                 "y": y.to("cpu"),
@@ -231,13 +232,13 @@ class EventDatasetFromUpsampled(Dataset):
 
 if __name__ == "__main__":
     import time
-    ds = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
+    ds = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
                                    mode="event",
                                    B=5,
                                    force_recomputing=True)
 
 
-    datapoint = ds[4]
+    datapoint = ds[0]
 
     imgs, events, grids = datapoint["frames"], datapoint["events"], datapoint["grids"]
     optical_flow = datapoint["optical_flows"]
@@ -252,4 +253,4 @@ if __name__ == "__main__":
     print(grids.shape)
 
     # visualize a datapoint
-    render_events_video(datapoint)
+    render_events_video(datapoint, output_path="events_vis_regular.mp4")

@@ -312,4 +312,4 @@ if __name__ == "__main__":
     print(grids.shape)
 
     # visualize a datapoint
-    render_events_video(datapoint)
+    render_events_video(datapoint, output_path="events_vis_retina.mp4")
