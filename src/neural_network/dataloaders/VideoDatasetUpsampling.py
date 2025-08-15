@@ -303,13 +303,26 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                 # shape (512, 180, 240, 3), dtype=float32
 
                 params = { "raw_images" : "raw_images.npz",
-                          "new_images_per_pair" : images_per_patches.tolist(),
-                          "timestamps" : timestamps.tolist(),
                           "fps" : self.upsamplingDataset.videoDataset.fps,
-                          "optical_flow_path" : "optical_flow.npz",}
+                          "optical_flow_path" : "optical_flow.npz"}
+
+                if upsample_to_events:
+                    params['new_images_per_pair_OF'] =  images_per_patches.tolist()
+                    params["timestamps_OF"] = timestamps.tolist()
+
+                else:
+                    params['new_images_per_pair_FF'] =  images_per_patches.tolist()
+                    params["timestamps_FF"] = timestamps.tolist()
 
                 root_folder = os.path.join(self.output_path, f"video_{i:05d}")
                 os.makedirs(root_folder, exist_ok=True)
+
+                if os.path.exists(os.path.join(root_folder, "params.json")):
+                    r = json.load(open(os.path.join(root_folder, "params.json")))
+
+                    for k, v in r.items():
+                        if k not in params:
+                            params[k] = v
 
                 with open(os.path.join(root_folder, "params.json"), "w") as f:
                     json.dump(params, f, indent=4)

@@ -26,24 +26,7 @@ def write_sequence_and_original_to_video(upsampled, timestamps, original, origin
             writer.append_data(new_data)
 
 
-def cache_upsampling_new_framerate():
-    idx = 0
-    debug = True
-    video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
-                                          split="train",
-                                          global_fps=27,
-                                          suffix="frames")
-
-    upsampling_ds = VideoDatasetUpsampling(video_ds,
-                                           model_path=os.path.join("models", "film_net", "Style", "saved_model"),
-                                           upsample_to_events=False,
-                                           new_framerate=200,
-                                           debug = False)
-
-    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
-                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
-
-
+def  make_fixed_framerate_validation():
     video_ds_val = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
                                           split="validation",
                                           global_fps=27,
@@ -60,8 +43,7 @@ def cache_upsampling_new_framerate():
                                         output_path=os.path.join("src", "neural_network", "data", "upsampled_validation"))
 
 
-
-def cache_upsampling_optical_flow():
+def make_fixed_framerate_train():
     video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
                                           split="train",
                                           global_fps=27,
@@ -69,13 +51,15 @@ def cache_upsampling_optical_flow():
 
     upsampling_ds = VideoDatasetUpsampling(video_ds,
                                            model_path=os.path.join("models", "film_net", "Style", "saved_model"),
-                                           upsample_to_events=True,
+                                           upsample_to_events=False,
+                                           new_framerate=200,
                                            debug = False)
 
     VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
                                         output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
 
 
+def make_OF_val():
     video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
                                           split="validation",
                                           global_fps=27,
@@ -90,7 +74,45 @@ def cache_upsampling_optical_flow():
                                         output_path=os.path.join("src", "neural_network", "data", "upsampled_validation"))
 
 
+def make_OF_train():
+    video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
+                                          split="train",
+                                          global_fps=27,
+                                          suffix="frames")
+
+    upsampling_ds = VideoDatasetUpsampling(video_ds,
+                                           model_path=os.path.join("models", "film_net", "Style", "saved_model"),
+                                           upsample_to_events=True,
+                                           debug = False)
+
+    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
+
+
+def cache_upsampling_new_framerate():
+    idx = 0
+    debug = True
+
+    make_fixed_framerate_validation()
+    make_fixed_framerate_train()
+
+
+def cache_upsampling_optical_flow():
+    make_OF_val()
+    make_OF_train()
+
+
+
+def quciker_check():
+    make_OF_val()
+    make_fixed_framerate_validation()
+
+    make_OF_train()
+    make_fixed_framerate_train()
+
+
 if __name__ == "__main__":
 
-    cache_upsampling_optical_flow()
-    cache_upsampling_new_framerate()
+    # cache_upsampling_optical_flow()
+    # cache_upsampling_new_framerate()
+    quciker_check()
