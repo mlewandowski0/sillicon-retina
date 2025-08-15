@@ -10,15 +10,18 @@ import matplotlib
 from src.neural_network.utils.event_utils import *
 import hashlib
 from src.neural_network.dataloaders.utils import _mk_cache_paths_SE, _memmap_load, _save_cached_npy
-from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaVerboseFloatCUDA
+from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaFloatCUDAOnline
 
-class EventDatasetFromUpsampled(Dataset):
+class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
     def __init__(self, directory,
                        mode = "event",
                        B = 5,
+                       height=180,
+                       width=240,
                        config = SiliconRetinaConfig(),
                        force_recomputing=False,
+                       input_framerate=200,
                        device="cuda",
                         limit=-1,
                        grids_dtype=np.float16):
@@ -30,6 +33,7 @@ class EventDatasetFromUpsampled(Dataset):
         self.device = device
         self.grids_dtype = grids_dtype
         self.config = config
+        self.input_framerate = input_framerate
 
         # load glboal metadata once
         with open(os.path.join(directory, "metadata.json"), "r") as f:
@@ -48,13 +52,12 @@ class EventDatasetFromUpsampled(Dataset):
                 self.properties.append(json.load(f))
 
         # ESIM
-        self.simulator = SiliconRetinaVerboseFloatCUDA(silicon_retina_config=config,
-                                                        T=)
+        self.simulator = SiliconRetinaFloatCUDAOnline(silicon_retina_config=config,
+                                                        height=height,
+                                                        width=width)
 
         # Cache filename builder bound with thresholds
-        self._mk_paths = lambda folder: _mk_cache_paths(
-            folder, B, contrast_threshold_neg, contrast_threshold_pos
-        )
+        self._mk_paths = lambda folder: _mk_cache_paths_SE(folder, B)
 
     def __len__(self):
         return len(self.data_files)
@@ -119,7 +122,7 @@ class EventDatasetFromUpsampled(Dataset):
 
 
         # slow path ( first time read and data cacheing)
-        frames = self._load_video_gray(os.path.join(folder, "video.mp4"))  # (N, H, W), uint8
+        frames = self._load_video_gray(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))  # (N, H, W), uint8
         timestamps = np.asarray(properties["timestamps"], dtype=np.float64)
         images = properties["images"]  # list of counts per segment
         timestamps_ns = (timestamps * 1e9).astype("int64")

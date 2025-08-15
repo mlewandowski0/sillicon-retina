@@ -123,7 +123,7 @@ class EventDatasetFromUpsampled(Dataset):
 
 
         # slow path ( first time read and data cacheing)
-        frames = self._load_video_gray(os.path.join(folder, "video.mp4"))  # (N, H, W), uint8
+        frames = self._load_video_gray(os.path.join(folder, "video_upsampled_using_optical_flow.mp4"))  # (N, H, W), uint8
         timestamps = np.asarray(properties["timestamps"], dtype=np.float64)
         images = properties["images"]  # list of counts per segment
         timestamps_ns = (timestamps * 1e9).astype("int64")

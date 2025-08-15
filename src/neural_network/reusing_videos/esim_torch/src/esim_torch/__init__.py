@@ -1,2 +1,2 @@
 from .esim_torch import EventSimulator_torch as ESIM
-from .silicon_retina_torch import SiliconRetinaVerboseFloatCUDA, SiliconRetinaConfig
+from .silicon_retina_torch import SiliconRetinaVerboseFloatCUDA, SiliconRetinaFloatCUDAOnline, SiliconRetinaConfig

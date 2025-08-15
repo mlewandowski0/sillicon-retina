@@ -151,9 +151,9 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
 
         self.register_buffer("fired_on",
-                             torch.zeros((1, self.height, self.width), dtype=torch.uint8, device="cuda:0"))
+                             torch.zeros((2, self.height, self.width), dtype=torch.uint8, device="cuda:0"))
         self.register_buffer("fired_off",
-                             torch.zeros((1, self.height, self.width), dtype=torch.uint8, device="cuda:0"))
+                             torch.zeros((2, self.height, self.width), dtype=torch.uint8, device="cuda:0"))
 
     def reset(self):
         self.LPF1.zero_()
@@ -182,7 +182,7 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
 
         img = img.to(self.LPF1.device, non_blocking=True)
 
-        return silicon_retina_cuda.forward_silicon_retina_verbose(img,
+        return silicon_retina_cuda.forward_silicon_retina_online(img,
                                                                   self.LPF1,
                                                                   self.HPF1,
                                                                   self.BLURRED2,

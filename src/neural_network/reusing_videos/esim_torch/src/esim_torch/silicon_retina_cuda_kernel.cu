@@ -892,7 +892,7 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
-    int T, int H, int W,
+    int curr_t, int H, int W,
     float alpha1,
     float alpha2,
     float V_BIP_LPF_alpha,
@@ -967,7 +967,7 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
                                     d_fired_on.data<unsigned char>(),
                                     d_fired_off.data<unsigned char>(),
 
-                                    T, H, W,
+                                    curr_t, H, W,
                                     alpha1, alpha2,
                                     V_BIP_LPF_alpha,
                                     lambda_OPL,
