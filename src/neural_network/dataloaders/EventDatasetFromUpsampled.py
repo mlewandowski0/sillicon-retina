@@ -9,7 +9,7 @@ import esim_torch
 import matplotlib
 from src.neural_network.utils.event_utils import *
 import hashlib
-from .utils import _mk_cache_paths, _memmap_load, _save_cached_npy
+from .utils import _mk_cache_paths_events, _memmap_load, _save_cached_npy
 
 
 class EventDatasetFromUpsampled(Dataset):
@@ -56,7 +56,7 @@ class EventDatasetFromUpsampled(Dataset):
         )
 
         # Cache filename builder bound with thresholds
-        self._mk_paths = lambda folder: _mk_cache_paths(
+        self._mk_paths = lambda folder: _mk_cache_paths_events(
             folder, B, contrast_threshold_neg, contrast_threshold_pos
         )
 
@@ -219,17 +219,10 @@ class EventDatasetFromUpsampled(Dataset):
 
         return result
 
-
-
-
     def __getitem__(self, idx):
         folder = self.data_files[idx]
         props = self.properties[idx]
-
-        if self.mode == "event":
-            return self._read_events_or_create(folder, props)
-        else:
-            raise NotImplementedError("")
+        return self._read_events_or_create(folder, props)
 
 
     def __len__(self):

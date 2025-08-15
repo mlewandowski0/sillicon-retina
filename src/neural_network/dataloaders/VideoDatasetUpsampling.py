@@ -128,23 +128,22 @@ class VideoDatasetUpsampling(Dataset):
             optical_flows.append(optical_flow)
 
         images_per_patch = [len(a) for a in all_images]
-        return np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
+        return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
 
-    def _upsample_to_fixed_framerate(self, datapoint, new_framerate):        
+    def _upsample_to_fixed_framerate(self, datapoint, new_framerate):
         images = datapoint['images']
         fps = datapoint['fps']
 
         all_images = []
         all_timestamps = []
         optical_flows = []
-        
+
         new_dt = 1.0 / new_framerate
         img_dt = 1.0 / fps
 
         T = len(images)
         video_time = img_dt * T
-        
-        
+
         if self.debug:
             pbar = tqdm.tqdm(np.arange(0, video_time, new_dt))
         else:
@@ -153,31 +152,29 @@ class VideoDatasetUpsampling(Dataset):
         i = 0
         image_deltas = []
         prev = 0
-        
+
         for time in pbar:
-            
+
             if time >= (i + 1) * img_dt:
                 i += 1
                 image_deltas.append(prev)
-                prev = 0 
+                prev = 0
 
-            original_frame_time        = i * img_dt
-            next_original_frame_time   = (i + 1) * img_dt              
+            original_frame_time = i * img_dt
+            next_original_frame_time = (i + 1) * img_dt
 
             dt_rel = (time - original_frame_time) / (next_original_frame_time - original_frame_time)
             dt_rel = np.array([dt_rel], dtype=np.float32)
 
-            print(f"interpolating {time}s  inbetween {original_frame_time} , {next_original_frame_time}")            
-            print(f"dt_rel : {dt_rel}")
             prev += 1
-            
+
             I0 = images[i]
-            I1 = images[i+1] if i + 1 < T else images[i]           
-            
-            # preprocess the images to fit the shape 
+            I1 = images[i + 1] if i + 1 < T else images[i]
+
+            # preprocess the images to fit the shape
             I0 = np.repeat(I0[None, :, :, None] / 255.0, axis=-1, repeats=3)
-            I1 = np.repeat(I1[None, :, :, None] / 255.0, axis=-1, repeats=3) 
-            
+            I1 = np.repeat(I1[None, :, :, None] / 255.0, axis=-1, repeats=3)
+
             if time == original_frame_time:
                 all_images.append(I0)
                 all_timestamps.append(time)
@@ -186,11 +183,10 @@ class VideoDatasetUpsampling(Dataset):
             interpolated_image, F_0_1, F_1_0 = self.interpolation.interpolate(I0, I1, dt_rel)
             all_images.append(interpolated_image)
             all_timestamps.append(time)
-        
-        image_deltas.append(prev) 
-        
-        return np.concatenate(all_images, axis=0), np.array(image_deltas), np.array(all_timestamps)
 
+        image_deltas.append(prev)
+
+        return np.array(images), np.concatenate(all_images, axis=0), np.array(image_deltas), np.array(all_timestamps), optical_flows
         
     def __len__(self): 
         return len(self.videoDataset)
@@ -204,13 +200,12 @@ class VideoDatasetUpsampling(Dataset):
             return self._upsample_to_fixed_framerate(datapoint, self.new_framerate)
 
 class VideoDatasetUpsamplingCacheToFolder(Dataset):
-    def __init__(self, upsamplingDataset, output_path,
-                 save_mp4=True, save_suffix="", bit_depth=8):
+    def __init__(self, upsamplingDataset : VideoDatasetUpsampling,
+                 output_path, save_mp4=True, bit_depth=8):
         self.upsamplingDataset = upsamplingDataset
         self.output_path = output_path
         self.save_mp4 = save_mp4
         self.bit_depth = bit_depth
-        self.save_suffix = save_suffix
         self.data = []
         self._cache()
 
@@ -252,15 +247,22 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
 
     def _cache(self):
 
+        upsample_to_events = self.upsamplingDataset.upsample_to_events
+        new_framerate = self.upsamplingDataset.new_framerate
+
         run_computation = True
         metadata = {"number_of_videos" : len(self.upsamplingDataset),
                     "bit_depth" : self.bit_depth,
-                    "upsample_to_events" : self.upsamplingDataset.upsample_to_events,
-                    "new_framerate" : self.upsamplingDataset.new_framerate,
                     "model_path" : self.upsamplingDataset.model_path,
                     "optical_flow_saved" : True,
                     "optical_flow_name" : "optical_flow.npz"
                     }
+
+        if upsample_to_events:
+            metadata["upsampling_OF_saved"] = True
+        else:
+            metadata["upsampling_to_fixed_fps"] = True
+            metadata["new_framerate"] = new_framerate
 
         os.makedirs(os.path.join(self.output_path), exist_ok=True)
 
@@ -270,10 +272,22 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
             with open(os.path.join(self.output_path, "metadata.json"), "r") as f:
                 read_metadata = json.load(f)
 
-            # if the metadata matches the current metadata, skip computation
-            if read_metadata == metadata:
-                print("keys in metadata are equal ! Skipping computation ...")
-                run_computation = False
+            # if the metadata matches the current metadata, skip computation ( if current metadata is a subset
+            # of the read metadata )
+            is_subset = True
+            for k, v in metadata.items():
+                if k in read_metadata:
+                    if metadata[k] != read_metadata[k]:
+                        is_subset = False
+                        break
+                else:
+                    is_subset = False
+                    break
+            run_computation = not is_subset
+
+            for k, v in read_metadata.items():
+                if k not in metadata:
+                    metadata[k] = v
 
 
         if run_computation:
@@ -284,11 +298,12 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                 json.dump(metadata, f, indent=4)
 
             for i in pbar:
-                images, images_per_patches, timestamps, optical_flows = self.upsamplingDataset[i]
+                raw_images, upsampled_images, images_per_patches, timestamps, optical_flows = self.upsamplingDataset[i]
 
                 # shape (512, 180, 240, 3), dtype=float32
 
-                params = {"images" : images_per_patches.tolist(),
+                params = { "raw_images" : "raw_images.npz",
+                          "new_images_per_pair" : images_per_patches.tolist(),
                           "timestamps" : timestamps.tolist(),
                           "fps" : self.upsamplingDataset.videoDataset.fps,
                           "optical_flow_path" : "optical_flow.npz",}
@@ -299,11 +314,18 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                 with open(os.path.join(root_folder, "params.json"), "w") as f:
                     json.dump(params, f, indent=4)
 
-                if self.save_mp4:
-                    mp4_path = os.path.join(root_folder, f"video_{self.save_suffix}.mp4")
-                    self._write_mp4(images, mp4_path, fps=params["fps"])
+                if upsample_to_events:
+                    mp4_path = os.path.join(root_folder, f"video_upsampled_using_optical_flow.mp4")
+                else:
+                    mp4_path = os.path.join(root_folder, f"video_upsampled_fps_eq_{new_framerate}.mp4")
 
-                np.savez_compressed(os.path.join(root_folder, params["optical_flow_path"]),
+                self._write_mp4(upsampled_images, mp4_path, fps=params["fps"])
+
+                np.savez_compressed(os.path.join(root_folder, params["raw_images"]),
+                                    raw_images = raw_images)
+
+                if not os.path.exists(os.path.join(root_folder, params["optical_flow_path"])):
+                    np.savez_compressed(os.path.join(root_folder, params["optical_flow_path"]),
                                     optical_flow=optical_flows)
 
 

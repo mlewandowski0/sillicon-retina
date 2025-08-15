@@ -9,16 +9,15 @@ import esim_torch
 import matplotlib
 from src.neural_network.utils.event_utils import *
 import hashlib
-from src.neural_network.dataloaders.utils import _mk_cache_paths, _memmap_load, _save_cached_npy
+from src.neural_network.dataloaders.utils import _mk_cache_paths_SE, _memmap_load, _save_cached_npy
+from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaVerboseFloatCUDA
 
 class EventDatasetFromUpsampled(Dataset):
-
 
     def __init__(self, directory,
                        mode = "event",
                        B = 5,
-                       contrast_threshold_neg = 0.2,
-                       contrast_threshold_pos = 0.2,
+                       config = SiliconRetinaConfig(),
                        force_recomputing=False,
                        device="cuda",
                         limit=-1,
@@ -30,6 +29,7 @@ class EventDatasetFromUpsampled(Dataset):
         self.force_recomputing = force_recomputing
         self.device = device
         self.grids_dtype = grids_dtype
+        self.config = config
 
         # load glboal metadata once
         with open(os.path.join(directory, "metadata.json"), "r") as f:
@@ -48,11 +48,8 @@ class EventDatasetFromUpsampled(Dataset):
                 self.properties.append(json.load(f))
 
         # ESIM
-        self.event_simulator = esim_torch.ESIM(
-            contrast_threshold_neg=contrast_threshold_neg,
-            contrast_threshold_pos=contrast_threshold_pos,
-            refractory_period_ns=0,
-        )
+        self.simulator = SiliconRetinaVerboseFloatCUDA(silicon_retina_config=config,
+                                                        T=)
 
         # Cache filename builder bound with thresholds
         self._mk_paths = lambda folder: _mk_cache_paths(

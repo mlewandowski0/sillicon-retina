@@ -1,15 +1,12 @@
-import os, tensorflow as tf
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-tf.config.set_visible_devices([], "GPU")
-
-import os 
-from src.neural_network.dataloaders.VideoDatasetUpsampling import VideoDatasetUpsampling
+import os
+from src.neural_network.dataloaders.VideoDatasetUpsampling import VideoDatasetUpsampling, \
+    VideoDatasetUpsamplingCacheToFolder
 from src.neural_network.dataloaders.VideoDataset import VideoDatasetFromPictures
 import imageio
 import numpy as np 
 
-def write_sequence_to_video(images, filename):
-    with imageio.get_writer(filename, fps=30) as writer:
+def write_sequence_to_video(images, filename, fps=30):
+    with imageio.get_writer(filename, fps=fps) as writer:
         for i in range(len(images)):
             writer.append_data(np.clip(255. * images[i], 0, 255.).astype(np.uint8)  )
 
@@ -29,8 +26,7 @@ def write_sequence_and_original_to_video(upsampled, timestamps, original, origin
             writer.append_data(new_data)
 
 
-
-if __name__ == "__main__":
+def cache_upsampling_new_framerate():
     idx = 0
     debug = True
     video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
@@ -38,20 +34,63 @@ if __name__ == "__main__":
                                           global_fps=27,
                                           suffix="frames")
 
-    original_images = video_ds[idx]
-
     upsampling_ds = VideoDatasetUpsampling(video_ds,
                                            model_path=os.path.join("models", "film_net", "Style", "saved_model"),
                                            upsample_to_events=False,
                                            new_framerate=200,
-                                           debug = debug)
+                                           debug = False)
 
-    original_images = video_ds[idx]
-    x = upsampling_ds[idx]
-    images, deltas, timestamps = x[0], x[1], x[2]
+    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
 
 
-    write_sequence_to_video(images, os.path.join("src", "prototyping","upsampling_fixed_framerate.mp4"))
-    write_sequence_and_original_to_video(upsampled=images, timestamps=timestamps,
-                                         original=original_images["images"], original_fps=video_ds.fps,
-                                         filename=os.path.join("src", "prototyping", "upsampling_fixed_framerate_comparison.mp4"))
+    video_ds_val = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
+                                          split="validation",
+                                          global_fps=27,
+                                          suffix="frames")
+
+    upsampling_ds_val = VideoDatasetUpsampling(video_ds_val,
+                                           model_path=os.path.join("models", "film_net", "Style", "saved_model"),
+                                           upsample_to_events=False,
+                                           new_framerate=200,
+                                           debug = False)
+
+
+    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds_val,
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_validation"))
+
+
+
+def cache_upsampling_optical_flow():
+    video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
+                                          split="train",
+                                          global_fps=27,
+                                          suffix="frames")
+
+    upsampling_ds = VideoDatasetUpsampling(video_ds,
+                                           model_path=os.path.join("models", "film_net", "Style", "saved_model"),
+                                           upsample_to_events=True,
+                                           debug = False)
+
+    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
+
+
+    video_ds = VideoDatasetFromPictures(os.path.join("src", "neural_network", "data", "ecoco_depthmaps_test"),
+                                          split="validation",
+                                          global_fps=27,
+                                          suffix="frames")
+
+    upsampling_ds = VideoDatasetUpsampling(video_ds,
+                                           model_path=os.path.join("models", "film_net", "Style", "saved_model"),
+                                           upsample_to_events=True,
+                                           debug = False)
+
+    VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_validation"))
+
+
+if __name__ == "__main__":
+
+    cache_upsampling_optical_flow()
+    cache_upsampling_new_framerate()

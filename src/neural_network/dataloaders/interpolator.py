@@ -100,7 +100,7 @@ class Interpolator:
       x0, bbox_to_crop = _pad_to_align(x0, self._align)
       x1, _ = _pad_to_align(x1, self._align)
 
-    time = tf.cast(dt, tf.float32)[None, :]  # shape (1,1)
+    time = tf.cast(dt, tf.float32)[:, None]  # shape (1,1)
     x0 = tf.cast(x0, tf.float32)  # shape (1,H,W,3)
     x1 = tf.cast(x1, tf.float32)  # shape (1,H,W,3)
 
