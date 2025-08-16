@@ -31,6 +31,12 @@
         }                                                                         \
     } while (0)
 
+__device__ __forceinline__ float fclampf(float x, float min, float max)
+{
+    return fmaxf(min, fminf(max, x));
+}
+
+
 __constant__ float BLUR_kernel_3x3[9] = {
     1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
     1.0f / 9.0f, 1.0f / 9.0f, 1.0f / 9.0f,
@@ -86,6 +92,7 @@ __device__ float apply_blur_avg(int kernel_size, int W, int H,
         }
     }
 
+    output =
     return (cnt > 0.0f) ? output / cnt : 0.0f;
 }
 
@@ -184,17 +191,12 @@ __forceinline__ __device__ char fire_and_reset(LIF_RESET_MODE mode,
                                                float U_th,
                                                float U_reset)
 {
-    if (mode == LIF_RESET_MODE::LIF_SUBTRACT_RESET)
-    {
         if (V_LIF >= U_th)
         {
             V_LIF -= U_reset;
             return 1; // mark as fired
         }
         return 0; // mark as not fired
-    }
-
-    return 0;
 }
 
 /********************************************************************

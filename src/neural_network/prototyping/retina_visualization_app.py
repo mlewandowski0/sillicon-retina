@@ -234,7 +234,7 @@ if __name__ == "__main__":
         return fps, tau_ms, tauA_ms, lamG, gL, C_val, lamOPL, GAzero, lamA, Ibias01, Urest, Uth, Ureset, q_bits
 
     def recompute_and_play():
-        nonlocal last_frames, last_fps
+        global last_frames, last_fps
         fps, tau_ms, tauA_ms, lamG, gL, C_val, lamOPL, GAzero, lamA, Ibias01, Urest, Uth, Ureset, q_bits = read_params()
         cfg = make_config_from_sliders(fps, tau_ms, tauA_ms, lamG, gL, C_val,
                                        lamOPL, GAzero, lamA, Ibias01,
