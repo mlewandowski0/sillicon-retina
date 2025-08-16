@@ -23,7 +23,12 @@ class SiliconRetinaConfig:
 
     U_reset_on : float = 0.0
     U_reset_off : float = 0.0
-
+    
+    HPF1_mode : int = 0
+    HPF1_param : float = 0.5
+    
+    HPF2_mode : int = 0 
+    HPF2_param : float = 0.5
 
 class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
     def __init__(self, silicon_retina_config: SiliconRetinaConfig, T, height, width):
@@ -34,6 +39,7 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
         self.T = T
         
         self.register_buffer("LPF1", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
+        self.register_buffer("HPF1_mem", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("HPF1", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("BLURRED2", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("LPF2", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
@@ -41,6 +47,8 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
         self.register_buffer("V_BIP", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("Q_V_BIP", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("V_BIP_LPF", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
+        self.register_buffer("HPF2_mem", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
+        self.register_buffer("HPF2", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("HPF2", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         
         self.register_buffer("I_Gang_on", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
@@ -81,6 +89,7 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
 
         return silicon_retina_cuda.forward_silicon_retina_verbose(imgs, 
                                                                   self.LPF1, 
+                                                                  self.HPF1_mem,
                                                                   self.HPF1, 
                                                                   self.BLURRED2, 
                                                                   self.LPF2, 
@@ -88,6 +97,7 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
                                                                   self.V_BIP,
                                                                   self.Q_V_BIP,
                                                                   self.V_BIP_LPF,
+                                                                  self.HPF2_mem,
                                                                   self.HPF2, 
                                                                   self.I_Gang_on, 
                                                                   self.I_Gang_off, 
@@ -112,7 +122,12 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
                                                                   self.config.U_th_on,
                                                                   self.config.U_th_off,
                                                                   self.config.U_reset_on,
-                                                                  self.config.U_reset_off)
+                                                                  self.config.U_reset_off,
+                                                                  self.config.HPF1_mode,
+                                                                  self.config.HPF1_param,
+                                                                  self.config.HPF2_mode,
+                                                                  self.config.HPF2_param
+                                                                  )
 
 
 class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
@@ -123,6 +138,8 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
         self.height = height
 
         self.register_buffer("LPF1",
+                             torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
+        self.register_buffer("HPF1_mem", 
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("HPF1",
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
@@ -137,6 +154,8 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
         self.register_buffer("Q_V_BIP",
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("V_BIP_LPF",
+                             torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
+        self.register_buffer("HPF2_mem", 
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
         self.register_buffer("HPF2",
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
@@ -185,6 +204,7 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
 
         return silicon_retina_cuda.forward_silicon_retina_online(img,
                                                                   self.LPF1,
+                                                                  self.HPF1_mem,
                                                                   self.HPF1,
                                                                   self.BLURRED2,
                                                                   self.LPF2,
@@ -192,6 +212,7 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
                                                                   self.V_BIP,
                                                                   self.Q_V_BIP,
                                                                   self.V_BIP_LPF,
+                                                                  self.HPF2_mem,
                                                                   self.HPF2,
                                                                   self.I_Gang_on,
                                                                   self.I_Gang_off,
@@ -216,7 +237,11 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
                                                                   self.config.U_th_on,
                                                                   self.config.U_th_off,
                                                                   self.config.U_reset_on,
-                                                                  self.config.U_reset_off)
+                                                                  self.config.U_reset_off,
+                                                                  self.config.HPF1_mode,
+                                                                  self.config.HPF1_param,
+                                                                  self.config.HPF2_mode,
+                                                                  self.config.HPF2_param)
 
 #class silicon_retina_cuda(torch.nn.Module):
 #    def __init__(self, ):

@@ -115,6 +115,7 @@ if __name__ == "__main__":
     U_rest = -0.2
     U_reset = 0.5 * (U_th - U_rest)
 
+    """
     config = SiliconRetinaConfig(alpha1=alpha1_q,
                                  alpha2=alpha2_q,
                                  V_BIP_LPF_alpha=V_BIP_LPF_q,
@@ -132,6 +133,10 @@ if __name__ == "__main__":
                                  U_th_off=U_th,
                                  U_reset_on=U_reset,
                                  U_reset_off=U_reset)
+    """
+    config = SiliconRetinaConfig()
+    config.HPF1_param = 0.5
+
 
     print(config)
 
@@ -185,7 +190,7 @@ if __name__ == "__main__":
         for i in range(T):
             zeros_tile = np.zeros_like(V_BIP[i])
 
-            img_frame = _prep(imgs[i], labels_row1[0])
+            img_frame = _prep(2.0*(imgs[i]-0.5), labels_row1[0])
             LPF_frame = _prep(LPF1[i], labels_row1[1])
             HPF_frame = _prep(HPF1[i], labels_row1[2])
             BLURRED_frame = _prep(BLURRED2[i], labels_row1[3])

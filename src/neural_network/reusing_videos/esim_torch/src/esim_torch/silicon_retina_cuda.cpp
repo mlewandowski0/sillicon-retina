@@ -1,10 +1,16 @@
 
 #include <torch/extension.h>
 #include <vector>
+#include <pybind11/pybind11.h>
 
-torch::Tensor forward_silicon_retina_verbose(
+
+namespace py = pybind11;
+
+
+std::vector<torch::Tensor> forward_silicon_retina_verbose(
     const torch::Tensor &d_images,
     torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1_mem,
     torch::Tensor &d_HPF1,
     torch::Tensor &d_BLURRED2,
     torch::Tensor &d_LPF2,
@@ -12,11 +18,15 @@ torch::Tensor forward_silicon_retina_verbose(
     torch::Tensor &d_V_BIP,
     torch::Tensor &d_Q_V_BIP,
     torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2_mem,
     torch::Tensor &d_HPF2,
+    
     torch::Tensor &d_I_Gang_on,
     torch::Tensor &d_I_Gang_off,
+
     torch::Tensor &d_V_LIF_on,
     torch::Tensor &d_V_LIF_off,
+
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
@@ -39,11 +49,17 @@ torch::Tensor forward_silicon_retina_verbose(
     float U_th_off,
 
     float U_reset_on,
-    float U_reset_off);
+    float U_reset_off,
+    int HPF1_mode,
+    float HPF1_param,
+    int HPF2_mode ,
+    float HPF2_param );
 
-torch::Tensor forward_silicon_retina(
+
+std::vector<torch::Tensor> forward_silicon_retina(
     const torch::Tensor &d_images,
     torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1_mem,
     torch::Tensor &d_HPF1,
     torch::Tensor &d_BLURRED2,
     torch::Tensor &d_LPF2,
@@ -51,11 +67,15 @@ torch::Tensor forward_silicon_retina(
     torch::Tensor &d_V_BIP,
     torch::Tensor &d_Q_V_BIP,
     torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2_mem,
     torch::Tensor &d_HPF2,
+
     torch::Tensor &d_I_Gang_on,
     torch::Tensor &d_I_Gang_off,
+
     torch::Tensor &d_V_LIF_on,
     torch::Tensor &d_V_LIF_off,
+
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
@@ -78,11 +98,16 @@ torch::Tensor forward_silicon_retina(
     float U_th_off,
 
     float U_reset_on,
-    float U_reset_off);
+    float U_reset_off,
+    int HPF1_mode,
+    float HPF1_param,
+    int HPF2_mode ,
+    float HPF2_param );
 
-torch::Tensor forward_silicon_retina_online(
+std::vector<torch::Tensor> forward_silicon_retina_online(
     const torch::Tensor &d_images,
     torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1_mem,
     torch::Tensor &d_HPF1,
     torch::Tensor &d_BLURRED2,
     torch::Tensor &d_LPF2,
@@ -90,15 +115,19 @@ torch::Tensor forward_silicon_retina_online(
     torch::Tensor &d_V_BIP,
     torch::Tensor &d_Q_V_BIP,
     torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2_mem,
     torch::Tensor &d_HPF2,
+
     torch::Tensor &d_I_Gang_on,
     torch::Tensor &d_I_Gang_off,
+
     torch::Tensor &d_V_LIF_on,
     torch::Tensor &d_V_LIF_off,
+
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
-    int T, int H, int W,
+    int curr_t, int H, int W,
     float alpha1,
     float alpha2,
     float V_BIP_LPF_alpha,
@@ -117,7 +146,11 @@ torch::Tensor forward_silicon_retina_online(
     float U_th_off,
 
     float U_reset_on,
-    float U_reset_off);
+    float U_reset_off,
+    int HPF1_mode,
+    float HPF1_param,
+    int HPF2_mode ,
+    float HPF2_param );
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {

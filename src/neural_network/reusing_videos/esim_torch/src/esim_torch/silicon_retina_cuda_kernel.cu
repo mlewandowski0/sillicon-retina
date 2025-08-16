@@ -92,7 +92,7 @@ __device__ float apply_blur_avg(int kernel_size, int W, int H,
         }
     }
 
-    output =
+    output = fclampf(output, 0.0f, 1.0f);
     return (cnt > 0.0f) ? output / cnt : 0.0f;
 }
 
@@ -204,11 +204,14 @@ __forceinline__ __device__ char fire_and_reset(LIF_RESET_MODE mode,
  *******************************************************************/
 __global__ void k_stageA(const float *__restrict__ imgs,
                          float *__restrict__ LPF1,
+                         float *__restrict__ HPF1_mem,
                          float *__restrict__ HPF1,
                          float *__restrict__ LPF2,
                          int lin_t_offset, int prev_offset, int curr_offset,
                          int H, int W,
-                         float alpha1, float alpha2)
+                         float alpha1, float alpha2,
+                         int HPF1_mode,
+                         float HPF1_param)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int HW = H * W;
@@ -277,6 +280,7 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
  *******************************************************************/
 __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
                          float *__restrict__ V_BIP,
+                         float *__restrict__ HPF2_mem,
                          float *__restrict__ HPF2,
                          float *__restrict__ I_Gang_on,
                          float *__restrict__ I_Gang_off,
@@ -295,7 +299,9 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
                          float p2, float p3,
                          float U_rest_on, float U_rest_off,
                          float U_th_on, float U_th_off,
-                         float U_reset_on, float U_reset_off)
+                         float U_reset_on, float U_reset_off,
+                         int HPF2_mode,
+                        float HPF2_param)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int HW = H * W;
@@ -313,6 +319,7 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
     V_BIP[curr] = euler_method(V_BIP[prev], p1,
                                I_OPL[curr], g_A);
 
+    
     HPF2[curr] = V_BIP[curr] - V_BIP[prev];
 
     I_Gang_on[curr] = fmaxf(HPF2[curr], 0.0f) + I_bias_on;
@@ -336,6 +343,7 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
 void run_silicon_retina_model(
     const float *d_imgs,
     float *d_LPF1,
+    float *d_HPF1_mem,
     float *d_HPF1,
     float *d_BLURRED2,
     float *d_LPF2,
@@ -343,6 +351,7 @@ void run_silicon_retina_model(
     float *d_V_BIP,
     float *d_Q_V_BIP,
     float *d_V_BIP_LPF,
+    float *d_HPF2_mem,
     float *d_HPF2,
     float *d_I_Gang_on,
     float *d_I_Gang_off,
@@ -368,7 +377,12 @@ void run_silicon_retina_model(
     float U_th_on,
     float U_th_off,
     float U_reset_on,
-    float U_reset_off)
+    float U_reset_off,
+    int HPF1_mode = 0,
+    float HPF1_param = 0.5f,
+    int HPF2_mode = 0,
+    float HPF2_param = 0.5f
+)
 {
     const int HW = H * W;
     int device;
@@ -396,9 +410,11 @@ void run_silicon_retina_model(
 
         /* ---------- kernel A ---------- */
         k_stageA<<<grid, block>>>(d_imgs,
-                                  d_LPF1, d_HPF1, d_LPF2,
+                                  d_LPF1, d_HPF1_mem, d_HPF1, d_LPF2,
                                   lin_t_offset, prev_offset, curr_offset,
-                                  H, W, alpha1, alpha2);
+                                  H, W, alpha1, alpha2,
+                                  HPF1_mode,
+                                 HPF1_param);
 
         /* ---------- kernel B ---------- */
         k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
@@ -410,6 +426,7 @@ void run_silicon_retina_model(
         /* ---------- kernel C ---------- */
         k_stageC<<<grid, block>>>(d_V_BIP_LPF,
                                   d_V_BIP,
+                                  d_HPF2_mem,
                                   d_HPF2,
                                   d_I_Gang_on,
                                   d_I_Gang_off,
@@ -428,7 +445,9 @@ void run_silicon_retina_model(
                                   p2, p3,
                                   U_rest_on, U_rest_off,
                                   U_th_on, U_th_off,
-                                  U_reset_on, U_reset_off);
+                                  U_reset_on, U_reset_off,
+                                  HPF2_mode,
+                                  HPF2_param);
     }
 
     CUDA_CHECK(cudaGetLastError());
@@ -438,6 +457,7 @@ void run_silicon_retina_model(
 std::vector<torch::Tensor> forward_silicon_retina_verbose(
     const torch::Tensor &d_images,
     torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1_mem,
     torch::Tensor &d_HPF1,
     torch::Tensor &d_BLURRED2,
     torch::Tensor &d_LPF2,
@@ -445,6 +465,7 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
     torch::Tensor &d_V_BIP,
     torch::Tensor &d_Q_V_BIP,
     torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2_mem,
     torch::Tensor &d_HPF2,
     
     torch::Tensor &d_I_Gang_on,
@@ -475,11 +496,16 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
     float U_th_off,
 
     float U_reset_on,
-    float U_reset_off)
+    float U_reset_off,    
+    int HPF1_mode = 0,
+    float HPF1_param = 0.5f,
+    int HPF2_mode = 0,
+    float HPF2_param = 0.5f)
 {
     CHECK_INPUT(d_images);
     CHECK_INPUT(d_LPF1);
     CHECK_INPUT(d_HPF1);
+    CHECK_INPUT(d_HPF1_mem);
     CHECK_INPUT(d_BLURRED2);
     CHECK_INPUT(d_LPF2);
     CHECK_INPUT(d_I_OPL);
@@ -487,6 +513,7 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
     CHECK_INPUT(d_Q_V_BIP);
     CHECK_INPUT(d_V_BIP_LPF);
     CHECK_INPUT(d_HPF2);
+    CHECK_INPUT(d_HPF2_mem);
     CHECK_INPUT(d_I_Gang_on);
     CHECK_INPUT(d_I_Gang_off);
 
@@ -497,6 +524,7 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
     CHECK_INPUT(d_fired_off);
 
     CHECK_DEVICE(d_images, d_LPF1);
+    CHECK_DEVICE(d_images, d_HPF1_mem);
     CHECK_DEVICE(d_images, d_HPF1);
     CHECK_DEVICE(d_images, d_BLURRED2);
     CHECK_DEVICE(d_images, d_LPF2);
@@ -504,6 +532,7 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
     CHECK_DEVICE(d_images, d_V_BIP);
     CHECK_DEVICE(d_images, d_Q_V_BIP);
     CHECK_DEVICE(d_images, d_V_BIP_LPF);
+    CHECK_DEVICE(d_images, d_HPF2_mem);
     CHECK_DEVICE(d_images, d_HPF2);
     CHECK_DEVICE(d_images, d_I_Gang_on);
     CHECK_DEVICE(d_images, d_I_Gang_off);
@@ -516,6 +545,7 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
 
     run_silicon_retina_model(d_images.data<float>(),
                              d_LPF1.data<float>(),
+                             d_HPF1_mem.data<float>(),
                              d_HPF1.data<float>(),
                              d_BLURRED2.data<float>(),
                              d_LPF2.data<float>(),
@@ -523,6 +553,7 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
                              d_V_BIP.data<float>(),
                              d_Q_V_BIP.data<float>(),
                              d_V_BIP_LPF.data<float>(),
+                             d_HPF2_mem.data<float>(),
                              d_HPF2.data<float>(),
                              d_I_Gang_on.data<float>(),
                              d_I_Gang_off.data<float>(),
@@ -549,14 +580,18 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
                              U_th_off,
 
                              U_reset_on,
-                             U_reset_off);
-
+                             U_reset_off,
+                             HPF1_mode,
+                             HPF1_param,
+                             HPF2_mode,
+                             HPF2_param );
     return {d_fired_on, d_fired_off};
 }
 
 void run_silicon_retina_model_fired_only(
     const float *d_imgs,
     float *d_LPF1,
+    float *d_HPF1_mem,
     float *d_HPF1,
     float *d_BLURRED2,
     float *d_LPF2,
@@ -564,6 +599,7 @@ void run_silicon_retina_model_fired_only(
     float *d_V_BIP,
     float *d_Q_V_BIP,
     float *d_V_BIP_LPF,
+    float *d_HPF2_mem,
     float *d_HPF2,
     float *d_I_Gang_on,
     float *d_I_Gang_off,
@@ -589,7 +625,11 @@ void run_silicon_retina_model_fired_only(
     float U_th_on,
     float U_th_off,
     float U_reset_on,
-    float U_reset_off)
+    float U_reset_off,
+    int HPF1_mode = 0,
+    float HPF1_param = 0.5f,
+    int HPF2_mode = 0,
+    float HPF2_param = 0.5f)
 {
     const int HW = H * W;
     int device;
@@ -620,9 +660,11 @@ void run_silicon_retina_model_fired_only(
 
         /* ---------- kernel A ---------- */
         k_stageA<<<grid, block>>>(d_imgs,
-                                  d_LPF1, d_HPF1, d_LPF2,
+                                  d_LPF1,d_HPF1_mem, d_HPF1, d_LPF2,
                                   lin_t_offset, prev_offset, curr_offset,
-                                  H, W, alpha1, alpha2);
+                                  H, W, alpha1, alpha2,
+                                  HPF1_mode,
+                                  HPF1_param);
 
         /* ---------- kernel B ---------- */
         k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
@@ -634,6 +676,7 @@ void run_silicon_retina_model_fired_only(
         /* ---------- kernel C ---------- */
         k_stageC<<<grid, block>>>(d_V_BIP_LPF,
                                   d_V_BIP,
+                                  d_HPF2_mem,
                                   d_HPF2,
                                   d_I_Gang_on,
                                   d_I_Gang_off,
@@ -652,7 +695,9 @@ void run_silicon_retina_model_fired_only(
                                   p2, p3,
                                   U_rest_on, U_rest_off,
                                   U_th_on, U_th_off,
-                                  U_reset_on, U_reset_off);
+                                  U_reset_on, U_reset_off,
+                                  HPF2_mode,
+                                  HPF2_param);
     }
 
     CUDA_CHECK(cudaGetLastError());
@@ -662,6 +707,7 @@ void run_silicon_retina_model_fired_only(
 std::vector<torch::Tensor> forward_silicon_retina(
     const torch::Tensor &d_images,
     torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1_mem,
     torch::Tensor &d_HPF1,
     torch::Tensor &d_BLURRED2,
     torch::Tensor &d_LPF2,
@@ -669,11 +715,15 @@ std::vector<torch::Tensor> forward_silicon_retina(
     torch::Tensor &d_V_BIP,
     torch::Tensor &d_Q_V_BIP,
     torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2_mem,
     torch::Tensor &d_HPF2,
+
     torch::Tensor &d_I_Gang_on,
     torch::Tensor &d_I_Gang_off,
+
     torch::Tensor &d_V_LIF_on,
     torch::Tensor &d_V_LIF_off,
+
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
@@ -696,11 +746,16 @@ std::vector<torch::Tensor> forward_silicon_retina(
     float U_th_off,
 
     float U_reset_on,
-    float U_reset_off)
+    float U_reset_off,
+    int HPF1_mode = 0,
+    float HPF1_param = 0.5f,
+    int HPF2_mode = 0,
+    float HPF2_param = 0.5f)
 {
     CHECK_INPUT(d_images);
     CHECK_INPUT(d_LPF1);
     CHECK_INPUT(d_HPF1);
+    CHECK_INPUT(d_HPF1_mem);
     CHECK_INPUT(d_BLURRED2);
     CHECK_INPUT(d_LPF2);
     CHECK_INPUT(d_I_OPL);
@@ -708,6 +763,7 @@ std::vector<torch::Tensor> forward_silicon_retina(
     CHECK_INPUT(d_Q_V_BIP);
     CHECK_INPUT(d_V_BIP_LPF);
     CHECK_INPUT(d_HPF2);
+    CHECK_INPUT(d_HPF2_mem);
     CHECK_INPUT(d_I_Gang_on);
     CHECK_INPUT(d_I_Gang_off);
 
@@ -718,6 +774,7 @@ std::vector<torch::Tensor> forward_silicon_retina(
     CHECK_INPUT(d_fired_off);
 
     CHECK_DEVICE(d_images, d_LPF1);
+    CHECK_DEVICE(d_images, d_HPF1_mem);
     CHECK_DEVICE(d_images, d_HPF1);
     CHECK_DEVICE(d_images, d_BLURRED2);
     CHECK_DEVICE(d_images, d_LPF2);
@@ -725,6 +782,7 @@ std::vector<torch::Tensor> forward_silicon_retina(
     CHECK_DEVICE(d_images, d_V_BIP);
     CHECK_DEVICE(d_images, d_Q_V_BIP);
     CHECK_DEVICE(d_images, d_V_BIP_LPF);
+    CHECK_DEVICE(d_images, d_HPF2_mem);
     CHECK_DEVICE(d_images, d_HPF2);
     CHECK_DEVICE(d_images, d_I_Gang_on);
     CHECK_DEVICE(d_images, d_I_Gang_off);
@@ -735,8 +793,10 @@ std::vector<torch::Tensor> forward_silicon_retina(
     CHECK_DEVICE(d_images, d_fired_on);
     CHECK_DEVICE(d_images, d_fired_off);
 
+    
     run_silicon_retina_model_fired_only(d_images.data<float>(),
                                         d_LPF1.data<float>(),
+                                        d_HPF1_mem.data<float>(),
                                         d_HPF1.data<float>(),
                                         d_BLURRED2.data<float>(),
                                         d_LPF2.data<float>(),
@@ -744,6 +804,7 @@ std::vector<torch::Tensor> forward_silicon_retina(
                                         d_V_BIP.data<float>(),
                                         d_Q_V_BIP.data<float>(),
                                         d_V_BIP_LPF.data<float>(),
+                                        d_HPF2_mem.data<float>(),
                                         d_HPF2.data<float>(),
                                         d_I_Gang_on.data<float>(),
                                         d_I_Gang_off.data<float>(),
@@ -770,7 +831,11 @@ std::vector<torch::Tensor> forward_silicon_retina(
                                         U_th_off,
 
                                         U_reset_on,
-                                        U_reset_off);
+                                        U_reset_off,
+                                        HPF1_mode,
+                                        HPF1_param,
+                                        HPF2_mode,
+                                        HPF2_param);
 
     return {d_fired_on, d_fired_off};
 }
@@ -778,6 +843,7 @@ std::vector<torch::Tensor> forward_silicon_retina(
 void run_silicon_retina_model_online(
     const float *d_imgs,
     float *d_LPF1,
+    float *d_HPF1_mem,
     float *d_HPF1,
     float *d_BLURRED2,
     float *d_LPF2,
@@ -785,6 +851,7 @@ void run_silicon_retina_model_online(
     float *d_V_BIP,
     float *d_Q_V_BIP,
     float *d_V_BIP_LPF,
+    float *d_HPF2_mem,
     float *d_HPF2,
     float *d_I_Gang_on,
     float *d_I_Gang_off,
@@ -810,7 +877,11 @@ void run_silicon_retina_model_online(
     float U_th_on,
     float U_th_off,
     float U_reset_on,
-    float U_reset_off)
+    float U_reset_off,
+    int HPF1_mode = 0,
+    float HPF1_param = 0.5f,
+    int HPF2_mode = 0,
+    float HPF2_param = 0.5f)
 {
     const int HW = H * W;
     int device;
@@ -838,9 +909,11 @@ void run_silicon_retina_model_online(
 
     /* ---------- kernel A ---------- */
     k_stageA<<<grid, block>>>(d_imgs,
-                              d_LPF1, d_HPF1, d_LPF2,
+                              d_LPF1,
+                              d_HPF1_mem,
+                              d_HPF1, d_LPF2,
                               lin_t_offset, prev_offset, curr_offset,
-                              H, W, alpha1, alpha2);
+                              H, W, alpha1, alpha2, HPF1_mode,HPF1_param);
 
     /* ---------- kernel B ---------- */
     k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
@@ -852,6 +925,7 @@ void run_silicon_retina_model_online(
     /* ---------- kernel C ---------- */
     k_stageC<<<grid, block>>>(d_V_BIP_LPF,
                               d_V_BIP,
+                              d_HPF2_mem,
                               d_HPF2,
                               d_I_Gang_on,
                               d_I_Gang_off,
@@ -870,7 +944,8 @@ void run_silicon_retina_model_online(
                               p2, p3,
                               U_rest_on, U_rest_off,
                               U_th_on, U_th_off,
-                              U_reset_on, U_reset_off);
+                              U_reset_on, U_reset_off,
+                              HPF2_mode, HPF2_param);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -879,6 +954,7 @@ void run_silicon_retina_model_online(
 std::vector<torch::Tensor> forward_silicon_retina_online(
     const torch::Tensor &d_images,
     torch::Tensor &d_LPF1,
+    torch::Tensor &d_HPF1_mem,
     torch::Tensor &d_HPF1,
     torch::Tensor &d_BLURRED2,
     torch::Tensor &d_LPF2,
@@ -886,11 +962,15 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
     torch::Tensor &d_V_BIP,
     torch::Tensor &d_Q_V_BIP,
     torch::Tensor &d_V_BIP_LPF,
+    torch::Tensor &d_HPF2_mem,
     torch::Tensor &d_HPF2,
+
     torch::Tensor &d_I_Gang_on,
     torch::Tensor &d_I_Gang_off,
+
     torch::Tensor &d_V_LIF_on,
     torch::Tensor &d_V_LIF_off,
+
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
@@ -913,7 +993,11 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
     float U_th_off,
 
     float U_reset_on,
-    float U_reset_off)
+    float U_reset_off,
+    int HPF1_mode = 0,
+    float HPF1_param = 0.5f,
+    int HPF2_mode = 0,
+    float HPF2_param = 0.5f)
 {
     CHECK_INPUT(d_images);
     CHECK_INPUT(d_LPF1);
@@ -955,12 +1039,14 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
     run_silicon_retina_model_online(d_images.data<float>(),
                                     d_LPF1.data<float>(),
                                     d_HPF1.data<float>(),
+                                   d_HPF1_mem.data<float>(),
                                     d_BLURRED2.data<float>(),
                                     d_LPF2.data<float>(),
                                     d_I_OPL.data<float>(),
                                     d_V_BIP.data<float>(),
                                     d_Q_V_BIP.data<float>(),
                                     d_V_BIP_LPF.data<float>(),
+                                    d_HPF2_mem.data<float>(),
                                     d_HPF2.data<float>(),
                                     d_I_Gang_on.data<float>(),
                                     d_I_Gang_off.data<float>(),
@@ -987,7 +1073,11 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
                                     U_th_off,
 
                                     U_reset_on,
-                                    U_reset_off);
+                                    U_reset_off,
+                                    HPF1_mode,
+                                    HPF1_param,
+                                    HPF2_mode,
+                                    HPF2_param);
 
      return {d_fired_on, d_fired_off};
 }
