@@ -2,6 +2,7 @@ import torch
 from . import silicon_retina_cuda
 from dataclasses import dataclass
 
+@dataclass
 class SiliconRetinaConfig:
     alpha1 : float = 0.5
     alpha2 : float = 0.5

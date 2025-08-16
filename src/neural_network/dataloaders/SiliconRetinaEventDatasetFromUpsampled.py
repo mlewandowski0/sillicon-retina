@@ -292,9 +292,15 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
 if __name__ == "__main__":
     import time
+
+    cfg = SiliconRetinaConfig()
+    cfg.alpha1 = 0.125
+    cfg.alpha2 = 0.125
+
     ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
                                    B=5,
-                                   force_recomputing=False)
+                                   config=cfg,
+                                   force_recomputing=True)
 
 
     datapoint = ds[0]
@@ -312,4 +318,4 @@ if __name__ == "__main__":
     print(grids.shape)
 
     # visualize a datapoint
-    render_events_video(datapoint, output_path="events_vis_retina.mp4")
+    render_events_video(datapoint, output_path="events_vis_retina_1.mp4")
