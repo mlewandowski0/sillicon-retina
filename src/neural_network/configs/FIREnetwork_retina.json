@@ -1,7 +1,7 @@
 {
         "num_bins": 5,
         "num_prev_images": 3,
-        "sequence_length": 40,
+        "sequence_length": 20,
 
         "hid1" : 32,
         "ks1" : 3,
@@ -30,11 +30,11 @@
 
         "debug_save" : true,
         "debug_iters" : 500,
-        "debug_folder": "src/neural_network/debug/test_FIRE_retina",
+        "debug_folder": "src/neural_network/debug/test_FIRE_retina_length=20",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE_retina",
+        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE_retina_length=20",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
