@@ -135,8 +135,11 @@ if __name__ == "__main__":
                                  U_reset_off=U_reset)
     """
     config = SiliconRetinaConfig()
+    config.HPF1_mode = 1
     config.HPF1_param = 0.5
 
+    config.HPF2_mode = 1
+    config.HPF2_param = 0.5
 
     print(config)
 

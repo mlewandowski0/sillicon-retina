@@ -77,6 +77,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                        config = SiliconRetinaConfig(),
                        force_recomputing=False,
                        input_framerate=200,
+                       log_scale=False,
                        device="cuda",
                         limit=-1,
                        grids_dtype=np.float16):
@@ -88,6 +89,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         self.grids_dtype = grids_dtype
         self.config = config
         self.input_framerate = input_framerate
+        self.log_scale = log_scale
 
         # load glboal metadata once
         with open(os.path.join(directory, "metadata.json"), "r") as f:
@@ -182,7 +184,11 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         timestamps_ns = (timestamps * 1e9).astype("int64")
 
         # Log intensities on GPU
-        frames = frames.astype("float32") / 255.0 + 1e-4
+        if self.log_scale:
+            frames = np.log(frames.astype("float32") + 1e-3) / np.log(255. + 1e-3)
+            frames = frames.astype("float32")
+        else:
+            frames = frames.astype("float32") / 255.0 + 1e-4
         frames = torch.from_numpy(frames).to(self.device, non_blocking=True)
         timestamps_ns_t = torch.from_numpy(timestamps_ns).cpu()
 

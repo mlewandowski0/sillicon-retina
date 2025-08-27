@@ -25,7 +25,8 @@ if __name__ == "__main__":
     T =  300
     
     imgs = []
-    path = os.path.join("src", "neural_network", "prototyping", "frames")
+    root = os.path.join("src", "neural_network", "prototyping")
+    path = os.path.join(root, "frames")
     frames = [os.path.join(path, f) for f in sorted(os.listdir(path)) if f.endswith('.png')]
 
     for i in range(T):
@@ -36,6 +37,10 @@ if __name__ == "__main__":
     imgs = torch.stack(imgs, dim=0).to("cuda:0")
 
     config = SiliconRetinaConfig()
+
+    config.HPF2_mode = 1
+    config.HPF2_param = 0.5
+
     model = SiliconRetinaFloatCUDAOnline(config, height=imgs.shape[1], width=imgs.shape[2])
     
     positive, negative = [], []
@@ -51,7 +56,7 @@ if __name__ == "__main__":
     positive = torch.stack(positive, dim=0)
     negative = torch.stack(negative, dim=0)
 
-    with imageio.get_writer('test.mp4', fps=30) as writer:
+    with imageio.get_writer(os.path.join(root,'test.mp4'), fps=4) as writer:
         for i in range(len(positive)):
             frame = make_vis(positive[i], negative[i])
             writer.append_data(frame)

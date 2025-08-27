@@ -128,21 +128,25 @@ __device__ float apply_low_pass_filter(LPF_MODE mode,
     return apply_low_pass_filter1(incoming_value, previous_value, alpha);
 }
 
-__forceinline__ __device__ float apply_high_pass_filter1(float incoming_value, float previous_value)
+__forceinline__ __device__ float apply_high_pass_filter(float incoming_value,
+                                        float previous_value,
+                                        int curr,
+                                        int prev,
+                                        float *HPF,
+                                        float *HPF_mem,
+                                        int HPF_mode,
+                                        float HPF_param)
 {
-    return incoming_value - previous_value;
-}
-
-__device__ float apply_high_pass_filter(HPF_MODE mode,
-                                        float incoming_value,
-                                        float previous_value)
-{
-    if (mode == HPF_MODE::HPF_1)
+    if (HPF_mode == 1)
     {
-        return apply_high_pass_filter1(incoming_value, previous_value);
+        HPF_mem[curr] = HPF_mem[prev] + HPF_param * (incoming_value - HPF_mem[prev]);
+        return incoming_value - HPF_mem[curr];
     }
-
-    return apply_high_pass_filter1(incoming_value, previous_value);
+    else if (HPF_mode == 2)
+    {
+        return incoming_value - previous_value + (1 - HPF_param) * HPF[prev];
+    }
+    return incoming_value - previous_value;
 }
 
 __forceinline__ __device__ float euler_method(float previous_value,
@@ -228,7 +232,11 @@ __global__ void k_stageA(const float *__restrict__ imgs,
                                        alpha1);
     LPF1[curr] = lpf1;
 
-    float hpf1 = lpf1 - LPF1[prev];
+    float hpf1 = apply_high_pass_filter(lpf1, LPF1[prev],
+                                        curr, prev,
+                                        HPF1, HPF1_mem,
+                                        HPF1_mode, HPF1_param);
+
     HPF1[curr] = hpf1;
 
     LPF2[curr] = apply_low_pass_filter(LPF_MODE::LPF_1,
@@ -319,8 +327,9 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
     V_BIP[curr] = euler_method(V_BIP[prev], p1,
                                I_OPL[curr], g_A);
 
-    
-    HPF2[curr] = V_BIP[curr] - V_BIP[prev];
+    HPF2[curr] = apply_high_pass_filter(V_BIP[curr], V_BIP[prev],
+                                        curr, prev, HPF2, HPF2_mem,
+                                        HPF2_mode, HPF2_param);
 
     I_Gang_on[curr] = fmaxf(HPF2[curr], 0.0f) + I_bias_on;
     I_Gang_off[curr] = fmaxf(-HPF2[curr], 0.0f) + I_bias_off;

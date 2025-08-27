@@ -30,6 +30,14 @@ class SiliconRetinaConfig:
     HPF2_mode : int = 0 
     HPF2_param : float = 0.5
 
+    apply_log_to_input : bool = False
+
+def preprocess_input(img, config):
+    if config.apply_log_to_input:
+        img = torch.log(255.0 * img + 1e-3) / 5.54126393731521
+    return torch.clamp(img, 0., 1.0)
+
+
 class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
     def __init__(self, silicon_retina_config: SiliconRetinaConfig, T, height, width):
         super(SiliconRetinaVerboseFloatCUDA, self).__init__()
@@ -67,7 +75,7 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
         assert imgs.shape[2] == self.width, "Input tensor must have the third dimension equal to width"
         assert imgs.dtype == torch.float32, "Input tensor must be of type float32"
 
-        imgs = imgs.to(self.LPF1.device, non_blocking=True)
+        imgs = preprocess_input(imgs, config=self.config)
 
         self.LPF1.zero_()
         self.HPF1.zero_()
@@ -198,9 +206,9 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
         assert img.shape[0] == 1, "Input tensor must have the first dimension equal to 1"
         assert img.shape[1] == self.height, "Input tensor must have the second dimension equal to height"
         assert img.shape[2] == self.width, "Input tensor must have the third dimension equal to width"
-        assert img.dtype == torch.float32, "Input tensor must be of type float32"
+        assert img.dtype == torch.float32, f"Input tensor must be of type float32, was {img.dtype}"
 
-        img = img.to(self.LPF1.device, non_blocking=True)
+        img = preprocess_input(img, config=self.config)
 
         return silicon_retina_cuda.forward_silicon_retina_online(img,
                                                                   self.LPF1,

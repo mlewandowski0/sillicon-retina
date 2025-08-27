@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from esim_torch.silicon_retina_torch import SiliconRetinaVerboseFloatCUDA, SiliconRetinaConfig
+from esim_torch.silicon_retina_torch import SiliconRetinaVerboseFloatCUDA, SiliconRetinaConfig, preprocess_input
 import os
 import torch
 import cv2
 import imageio
 import math
 import imageio.v3 as iio
+import shutil
 
 quantization = 4
 left_shift = 4
@@ -114,28 +115,15 @@ if __name__ == "__main__":
     U_rest = -0.2
     U_reset = 0.5 * (U_th - U_rest)
 
-    """
-    config = SiliconRetinaConfig(alpha1=alpha1_q,
-                                 alpha2=alpha2_q,
-                                 V_BIP_LPF_alpha=V_BIP_LPF_q,
-                                 lambda_OPL=5.0,
-                                 G_A_zero=8/256.,
-                                 lambda_A=8.0,
-                                 p1=p1_q,
-                                 I_bias_on=I_bias,
-                                 I_bias_off=I_bias,
-                                 p2= p2_q,
-                                 p3 = p3_q,
-                                 U_rest_on=U_rest,
-                                 U_rest_off=U_rest,
-                                 U_th_on=U_th,
-                                 U_th_off=U_th,
-                                 U_reset_on=U_reset,
-                                 U_reset_off=U_reset)
-    """
+    # config
     config = SiliconRetinaConfig()
+    config.HPF1_mode = 1
     config.HPF1_param = 0.5
 
+    config.HPF2_mode = 1
+    config.HPF2_param = 0.25
+
+    config.apply_log_to_input = False
 
     print(config)
 
@@ -145,6 +133,13 @@ if __name__ == "__main__":
     fires_on, fires_off = model.forward(imgs)  # expect bool-like masks per frame
 
     # get all of the internal buffers
+
+    imgs_proc = []
+
+    for img in imgs:
+        imgs_proc.append(preprocess_input(img, config=config))
+
+    imgs = torch.stack(imgs_proc, dim=0)
     imgs        = imgs.cpu().numpy()
     LPF1        = model.LPF1.cpu().numpy()
     HPF1        = model.HPF1.cpu().numpy()
@@ -183,6 +178,8 @@ if __name__ == "__main__":
     save_traj(V_LIF_off, "13_V_LIF_off")
     save_traj(fired_on, "14_fires_on")
     save_traj(fired_off, "15_fires_off")
+
+    shutil.make_archive("stat", "zip", "stat")
 
 
     with imageio.get_writer(os.path.join(".", "silicon_retina_visualization.mp4"), fps=30) as writer:
