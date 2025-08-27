@@ -13,7 +13,7 @@
         "use_amp" : true,
         "amp_dtype" : "fp16",
 
-        "force_recomputing" : true,
+        "force_recomputing" : false,
         "log_input" : false,
 
         "data_root": "src/neural_network/data/ecoco_depthmaps_test",
