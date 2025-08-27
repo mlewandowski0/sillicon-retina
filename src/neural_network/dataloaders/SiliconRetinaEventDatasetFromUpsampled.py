@@ -168,7 +168,10 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
 
             # zero-copy views into tensors on CPU: later moved to CUDA
-            event_grids = torch.as_tensor(grids_np)
+            grids_np = _memmap_load(paths['grids'])
+            event_grids = torch.from_numpy(grids_np)
+            event_grids = event_grids.clone()
+
             events = {
                 "x": torch.as_tensor(x_np),
                 "y": torch.as_tensor(y_np),
