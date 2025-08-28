@@ -1,6 +1,6 @@
 import torch
 from . import silicon_retina_cuda
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, fields
 
 @dataclass
 class SiliconRetinaConfig:
@@ -31,6 +31,18 @@ class SiliconRetinaConfig:
     HPF2_param : float = 0.5
 
     apply_log_to_input : bool = False
+    
+    # niceties
+    def to_dict(self) -> dict:
+        return asdict(self)       # handles nested dataclasses too
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SiliconRetinaConfig":
+        # ignore unknown keys so older code can read newer JSONs
+        names = {f.name for f in fields(cls)}
+        filtered = {k: v for k, v in d.items() if k in names}
+        return cls(**filtered)
+    
 
 def preprocess_input(img, config):
     if config.apply_log_to_input:

@@ -11,51 +11,22 @@ from src.neural_network.utils.event_utils import *
 import hashlib
 from src.neural_network.dataloaders.utils import _mk_cache_paths_SE, _memmap_load, _save_cached_npy
 from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaFloatCUDAOnline
-
+from src.neural_network.dataloaders.Encodings import *
+from src.neural_network.utils.util import update_json
 
 """
-        METADATA LOOKS LIKE 
-        
-        
-        {
-            "raw_images": "raw_images.npz",
-            "fps": 27,
-            "optical_flow_path": "optical_flow.npz",
-            "new_images_per_pair_FF": [....]
-            "timestamps_FF": [....]
-            "new_images_per_pair_OF": [....]
-            "timestamps_OF": [....]
-        }
+    METADATA LOOKS LIKE 
+         
+    {
+        "raw_images": "raw_images.npz",
+        "fps": 27,
+        "optical_flow_path": "optical_flow.npz",
+        "new_images_per_pair_FF": [....]
+        "timestamps_FF": [....]
+        "new_images_per_pair_OF": [....]
+        "timestamps_OF": [....]
+    }
 """
-
-def bitmaps_to_voxel_grid(fired_on, fired_off, ts_ns):
-    
-    T, H, W = fired_on.shape 
-    HW = H * W
-    # linearize once 
-    on_lin = fired_on.view(T, -1).nonzero(as_tuple=False).cpu()
-    off_lin = fired_off.view(T, -1).nonzero(as_tuple=False).cpu()
-
-    def unpack(t_idx):
-        t  = ts_ns.index_select(0, t_idx[:,0])
-        i  = t_idx[:,1]
-        y  = (i // W).to(torch.int32)
-        x  = (i %  W).to(torch.int32)
-        return x, y, t
-
-    x_on,  y_on,  t_on  = unpack(on_lin)
-    x_off, y_off, t_off = unpack(off_lin)
-
-    p_on  = torch.ones_like(x_on,  dtype=torch.int8)
-    p_off = -torch.ones_like(x_off, dtype=torch.int8)
-
-    x = torch.cat([x_on,  x_off],  dim=0)
-    y = torch.cat([y_on,  y_off],  dim=0)
-    t = torch.cat([t_on,  t_off],  dim=0)
-    p = torch.cat([p_on,  p_off],  dim=0)
-
-    order = torch.argsort(t, stable=True)
-    return x[order], y[order], t[order], p[order]
 
 # Convert to numpy bool arrays with shape (T, H, W)
 def to_bool_numpy(x):
@@ -70,7 +41,8 @@ def to_bool_numpy(x):
 class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
     def __init__(self, directory,
-                       B = 5,
+                       preprocessing_type : EventRepresentation = EventRepresentation.EVENTS,
+                       preprocessing_params = {},
                        height=180,
                        width=240,
                        config = SiliconRetinaConfig(),
@@ -83,7 +55,9 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
 
         self.directory = directory
-        self.B = B
+        self.preprocessing_type = preprocessing_type
+        self.preprocessing_params = preprocessing_params
+        
         self.height = height
         self.width = width
         self.force_recomputing = force_recomputing
@@ -124,13 +98,11 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                                  height=self.height,
                                  width=self.width)
 
-
-
     def __len__(self):
         return len(self.data_files)
 
     def _mk_paths(self, folder):
-        return _mk_cache_paths_SE(folder, self.B)
+        return _mk_cache_paths_SE(folder, self.preprocessing_params.get("B", 5))
 
     @staticmethod
     def _load_video_gray(path):
@@ -141,9 +113,62 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             vid = vid[..., 0]
         return vid.astype(np.uint8)
 
+    def process_bitmaps(self, positive, negative, 
+                        timestamps_ns_t, properties, 
+                        raw_frames, H, W):
+        
+        if self.preprocessing_type == EventRepresentation.EVENTS:
+            x,y,t, p = bitmaps_to_events(pos=positive.cpu(), neg=negative.cpu(), ts_ns=timestamps_ns_t)
+
+        elif self.preprocessing_type == EventRepresentation.EVENTS_TIME_PLUS_POS:
+            x, y, t, p = bitmaps_to_events(pos=positive.cpu(), neg=negative.cpu(), ts_ns=timestamps_ns_t,
+                                            c_ns=self.preprocessing_params.get("c_ns", None),
+                                            jitter_ns=self.preprocessing_params.get("jitter_ns", None),
+                                            hashed_jitter=self.preprocessing_params.get("hashed_jitter", False))
+                        
+    
+        raw_frames_fps = properties["fps"]
+        raw_frames_dt = 1 / raw_frames_fps
+        t_bounds = []
+        
+        for i in range(len(raw_frames) - 1):
+            t_bounds.append([i * raw_frames_dt * 1e9, (i+1) * raw_frames_dt * 1e9])
+        
+        t_bounds = torch.Tensor(t_bounds)
+        boundaries = torch.searchsorted(t, t_bounds, right=False)  # start indices
+
+        grids = []
+
+        for k in range(len(boundaries)):
+            s, e = boundaries[k]
+            s = int(s.item())
+            e = int(e.item())
+
+            # skip degenerate spans (no events or zero/negative duration)        
+            t0, t1 = t_bounds[k]
+            t0 = t0.item()
+            t1 = t1.item()
+            if e <= s or t1 <= t0:
+                grids.append(torch.zeros((self.B, H, W), dtype=torch.float16, device=x.device))
+                continue
+
+            xk, yk, tk, pk = x[s:e], y[s:e], t[s:e], p[s:e]
+
+            # (optional) hard safety: clamp x/y once if your ESIM can emit border values
+            # H, W = frames.shape[-2], frames.shape[-1]
+            # xk = xk.clamp_(0, W-1); yk = yk.clamp_(0, H-1)
+            g = events_to_voxels(xk, yk, tk, pk, t0, t1, device=x.device, H=H, W=W)
+            grids.append(g)
+
+        event_grids = torch.stack(grids, dim=0)
+    
+        return event_grids, x, y, t, p
+    
+    
     def _read_events_or_create(self, folder, properties):
 
         paths = self._mk_paths(folder)
+        properties_dirty = False
 
         have_cache = (os.path.exists(paths['grids'])
                       and os.path.exists(paths['frames'])
@@ -151,6 +176,37 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                       and os.path.exists(paths['y'])
                       and os.path.exists(paths['t'])
                       and os.path.exists(paths['p']))
+        
+        # check for valid cache : i.e. the silicon retina config matches
+        if have_cache and "silicon_retina_config" in properties:
+            cfg_dict = properties["silicon_retina_config"]
+            cfg_loaded = SiliconRetinaConfig.from_dict(cfg_dict)
+            if cfg_loaded != self.config:
+                print(f"Config mismatch, forcing recompute for {folder}")
+                have_cache = False
+                # update the config in the params.json
+                properties["silicon_retina_config"] = self.config.to_dict()  
+                properties_dirty = True   
+        else:
+            have_cache = False       
+
+        # another check : the preprocessing and params for preprocessing has to match 
+        if have_cache and "preprocessing_type" in properties:
+            if properties["preprocessing_type"] != self.preprocessing_type.name:
+                have_cache = False
+                properties["preprocessing_type"] = self.preprocessing_type.name
+                properties_dirty = True
+        else:
+            have_cache = False       
+
+        if have_cache and "preprocessing_params" in properties:
+            if properties["preprocessing_params"] != self.preprocessing_params:
+                have_cache = False
+                properties["preprocessing_params"] = self.preprocessing_params
+                properties_dirty = True
+        else:
+            have_cache = False       
+
 
         if have_cache and not self.force_recomputing:
             # fast path: mmapped reads
@@ -190,7 +246,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                 optical_flow = np.load(optical_flow_file)["optical_flow"]
                 result["optical_flows"] = optical_flow.transpose((0, 3, 1, 2))
 
-            return result
+            return result, properties, properties_dirty
 
         # ensure simulator
         self._ensure_simulator()
@@ -216,6 +272,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         # reset + simulate events
         self.simulator.reset()
 
+        # run the silicon retina simulator
         positive, negative = [], []
         T, H, W = frames.shape
         
@@ -230,46 +287,10 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         positive = torch.stack(positive, dim=0)
         negative = torch.stack(negative, dim=0)
         
-        x,y,t, p = bitmaps_to_voxel_grid(fired_on=positive.cpu(), fired_off=negative.cpu(), ts_ns=timestamps_ns_t)
-    
-        raw_frames_fps = properties["fps"]
-        raw_frames_dt = 1 / raw_frames_fps
-        t_bounds = []
+        # create the grids and events from the local configuration
+        event_grids, x, y, t, p = self.process_bitmaps(positive, negative, timestamps_ns_t, 
+                                                       properties, raw_frames, H, W)
         
-        
-        for i in range(len(raw_frames) - 1):
-            t_bounds.append([i * raw_frames_dt * 1e9, (i+1) * raw_frames_dt * 1e9])
-        
-        
-        t_bounds = torch.Tensor(t_bounds)
-        boundaries = torch.searchsorted(t, t_bounds, right=False)  # start indices
-
-        grids = []
-
-        for k in range(len(boundaries)):
-            s, e = boundaries[k]
-            s = int(s.item())
-            e = int(e.item())
-
-            # skip degenerate spans (no events or zero/negative duration)        
-            t0, t1 = t_bounds[k]
-            t0 = t0.item()
-            t1 = t1.item()
-            if e <= s or t1 <= t0:
-                grids.append(torch.zeros((self.B, H, W), dtype=torch.float16, device=x.device))
-                continue
-
-            xk, yk, tk, pk = x[s:e], y[s:e], t[s:e], p[s:e]
-
-            # (optional) hard safety: clamp x/y once if your ESIM can emit border values
-            # H, W = frames.shape[-2], frames.shape[-1]
-            # xk = xk.clamp_(0, W-1); yk = yk.clamp_(0, H-1)
-
-            g = events_to_voxels(xk, yk, tk, pk, t0, t1, device=x.device, H=H, W=W)
-            grids.append(g)
-
-        event_grids = torch.stack(grids, dim=0)
-
         # write caches
         # cast & move to CPU arrays only once, right before saving
         _save_cached_npy(paths["frames"], raw_frames.astype(np.uint8))
@@ -298,17 +319,27 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             optical_flow = np.load(optical_flow_file)["optical_flow"]
             result["optical_flows"] = optical_flow.transpose((0, 3, 1, 2))
 
-        return result
+        # update the properties
+        properties["silicon_retina_config"] = self.config.to_dict()  
+        properties["preprocessing_type"] = self.preprocessing_type.name
+        properties["preprocessing_params"] = self.preprocessing_params
+        properties_dirty = True
 
-
+        return result, properties, properties_dirty
 
 
     def __getitem__(self, idx):
         folder = self.data_files[idx]
         props = self.properties[idx]
 
-        return self._read_events_or_create(folder, props)
+        result, properties, properties_dirty = self._read_events_or_create(folder, props)
 
+        if properties_dirty:
+            self.properties[idx] = properties
+            with open(os.path.join(self.data_files[idx], "params.json"), "w") as f:
+                json.dump(properties, f, indent=4)
+        
+        return result
 
 
     def __len__(self):
@@ -319,13 +350,22 @@ if __name__ == "__main__":
     import time
 
     cfg = SiliconRetinaConfig()
-    cfg.alpha1 = 0.125
-    cfg.alpha2 = 0.125
+    cfg.alpha1 = 0.5
+    cfg.alpha2 = 0.5
+    
+    cfg.HPF2_mode = 1
+    cfg.HPF2_param = 0.5
+    cfg.HPF1_param = 0.42
 
-    ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
-                                   B=5,
+    H = 180
+    W = 240
+    HW = H * W
+
+    ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
+                                   preprocessing_type=EventRepresentation.EVENTS_TIME_PLUS_POS,
+                                   preprocessing_params={"c_ns": 0.25 * 0.005 * 1e9 / HW, "hashed_jitter":True},
                                    config=cfg,
-                                   force_recomputing=True)
+                                   force_recomputing=False)
 
 
     datapoint = ds[0]
