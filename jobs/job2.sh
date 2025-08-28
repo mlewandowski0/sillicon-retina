@@ -1,0 +1,3 @@
+python -m src.neural_network.experiment.reconstruct_intensity_using_FIREnetwork_silicon_retina_v2 -c src/neural_network/configs/FIREnetwork_prototyping.json
+python -m src.neural_network.experiment.reconstruct_intensity_using_FIREnetwork_silicon_retina_v2 -c src/neural_network/configs/FIREnetwork_prototyping_2.json
+python -m src.neural_network.experiment.reconstruct_intensity_using_FIREnetwork_silicon_retina_v2 -c src/neural_network/configs/FIREnetwork_is_hpf_cheap_bad.json

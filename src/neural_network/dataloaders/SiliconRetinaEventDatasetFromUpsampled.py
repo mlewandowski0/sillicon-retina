@@ -149,7 +149,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             t0 = t0.item()
             t1 = t1.item()
             if e <= s or t1 <= t0:
-                grids.append(torch.zeros((self.B, H, W), dtype=torch.float16, device=x.device))
+                grids.append(torch.zeros((properties.get("B", 5), H, W), dtype=torch.float16, device=x.device))
                 continue
 
             xk, yk, tk, pk = x[s:e], y[s:e], t[s:e], p[s:e]

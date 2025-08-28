@@ -35,16 +35,16 @@
 
         "debug_save" : true,
         "debug_iters" : 500,
-        "debug_folder": "src/neural_network/debug/test_FIRE_retina_length=30_burnin=10_no_log",
+        "debug_folder": "src/neural_network/debug/test_FIRE_retina_length=30_burnin=10_no_log_basic_se_reg_events_t+lin",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE_retina_length=30_burnin=10_no_log",
+        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE_retina_length=30_burnin=10_no_log_basic_se_reg_events_t+lin",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": false,
+        "use_wandb": true,
 
         "silicon_retina_config": {
         "alpha1": 0.5,
@@ -72,6 +72,7 @@
         },
         "event_representation_class": 1,
         "event_representation_params": {
-            "B" : 5
+            "c_ns" : 28.9351851,
+             "hashed_jitter" : true
         }
     }
