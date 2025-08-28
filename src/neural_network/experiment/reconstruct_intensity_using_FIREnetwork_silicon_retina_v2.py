@@ -20,7 +20,7 @@ from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint 
 from src.neural_network.dataloaders.SiliconRetinaEventDatasetFromUpsampled import SiliconRetinaEventDatasetFromUpsampled, SiliconRetinaConfig
 
 from torch.optim.lr_scheduler import StepLR
-
+from src.neural_network.dataloaders.Encodings import EventRepresentation
 
 torch.backends.cudnn.benchmark = True
 
@@ -288,15 +288,23 @@ if __name__ == "__main__":
                          out_sigmoid=config["out_sigmoid"]).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
 
+    # Silicon Retina Dataset parameters
+    
+    # Silicon Retina parameters
+    se_cfg = SiliconRetinaConfig().from_dict(config["silicon_retina_config"])
 
-    cfg = SiliconRetinaConfig()
+    event_representation = config["event_representation_class"]
+    event_representation = EventRepresentation(event_representation)
+    event_representation_params = config["event_representation_params"]
+    
 
     force_recomputing = config.get("force_recomputing", False)
     log_input = config.get("log_input", False)
 
     train_base = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
-                                   B=5,
-                                   config=cfg,
+                                   config=se_cfg,
+                                   preprocessing_params=event_representation_params,
+                                   preprocessing_type=event_representation,
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
                                    limit=config["train_limit"])
@@ -309,8 +317,9 @@ if __name__ == "__main__":
     )
 
     val_base = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
-                                   B=5,
-                                   config=cfg,
+                                   config=se_cfg,
+                                   preprocessing_params=event_representation_params,
+                                   preprocessing_type=event_representation,
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
                                    limit=config["val_limit"])

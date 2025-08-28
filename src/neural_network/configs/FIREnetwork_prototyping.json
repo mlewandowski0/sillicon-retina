@@ -44,5 +44,34 @@
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": true
+        "use_wandb": false,
+
+        "silicon_retina_config": {
+        "alpha1": 0.5,
+        "alpha2": 0.5,
+        "V_BIP_LPF_alpha": 0.5,
+        "lambda_OPL": 3.0,
+        "G_A_zero": 0.5,
+        "lambda_A": 0.5,
+        "p1": 0.25,
+        "I_bias_on": 0.01,
+        "I_bias_off": 0.01,
+        "p2": 1.0,
+        "p3": 0.2,
+        "U_rest_on": -0.02,
+        "U_rest_off": -0.02,
+        "U_th_on": 0.05,
+        "U_th_off": 0.05,
+        "U_reset_on": 0.0,
+        "U_reset_off": 0.0,
+        "HPF1_mode": 0,
+        "HPF1_param": 0.42,
+        "HPF2_mode": 1,
+        "HPF2_param": 0.5,
+        "apply_log_to_input": false
+        },
+        "event_representation_class": 1,
+        "event_representation_params": {
+            "B" : 5
+        }
     }
