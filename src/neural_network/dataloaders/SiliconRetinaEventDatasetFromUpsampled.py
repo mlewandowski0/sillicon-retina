@@ -28,7 +28,6 @@ from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaFlo
         }
 """
 
-
 def bitmaps_to_voxel_grid(fired_on, fired_off, ts_ns):
     
     T, H, W = fired_on.shape 
@@ -82,8 +81,11 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                         limit=-1,
                        grids_dtype=np.float16):
 
+
         self.directory = directory
         self.B = B
+        self.height = height
+        self.width = width
         self.force_recomputing = force_recomputing
         self.device = device
         self.grids_dtype = grids_dtype
@@ -108,16 +110,27 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                 self.properties.append(json.load(f))
 
         # ESIM
-        self.simulator = SiliconRetinaFloatCUDAOnline(silicon_retina_config=config,
-                                                        height=height,
-                                                        width=width)
+        self.simulator = None
 
-        # Cache filename builder bound with thresholds
-        self._mk_paths = lambda folder: _mk_cache_paths_SE(folder, B)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['simulator'] = None
+        return state
+
+    def _ensure_simulator(self):
+        if self.simulator is None:
+            self.simulator = SiliconRetinaFloatCUDAOnline(silicon_retina_config=self.config,
+                                 height=self.height,
+                                 width=self.width)
+
+
 
     def __len__(self):
         return len(self.data_files)
 
+    def _mk_paths(self, folder):
+        return _mk_cache_paths_SE(folder, self.B)
 
     @staticmethod
     def _load_video_gray(path):
@@ -155,7 +168,10 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
 
             # zero-copy views into tensors on CPU: later moved to CUDA
-            event_grids = torch.as_tensor(grids_np)
+            grids_np = _memmap_load(paths['grids'])
+            event_grids = torch.from_numpy(grids_np)
+            event_grids = event_grids.clone()
+
             events = {
                 "x": torch.as_tensor(x_np),
                 "y": torch.as_tensor(y_np),
@@ -176,6 +192,8 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
             return result
 
+        # ensure simulator
+        self._ensure_simulator()
 
         # slow path ( first time read and data cacheing)
         frames = self._load_video_gray(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))  # (N, H, W), uint8
@@ -239,6 +257,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             t1 = t1.item()
             if e <= s or t1 <= t0:
                 grids.append(torch.zeros((self.B, H, W), dtype=torch.float16, device=x.device))
+                continue
 
             xk, yk, tk, pk = x[s:e], y[s:e], t[s:e], p[s:e]
 
