@@ -32,7 +32,7 @@ class ECOCODatasetWrapper(Dataset):
         """Apply data augmentation to frames and grids"""
 
         # frames here are of shape (N, H, W)
-        # events are of shape (N, 5, H, W)
+        # events are of shape (N, B, H, W)
         # flows are of shape (N, 2, H, W)
 
         if not self.augment:
@@ -84,8 +84,8 @@ class ECOCODatasetWrapper(Dataset):
         return events
 
     def __len__(self):
-        return int(len(self.valid_indices) * 1.5)
-
+        return len(self.valid_indices)
+    
     def __getitem__(self, idx):
         """
         Returns a sequence ready for E2VID training.
@@ -93,9 +93,11 @@ class ECOCODatasetWrapper(Dataset):
         # Map idx to valid_indices with wraparound
         dataset_idx = self.valid_indices[idx % len(self.valid_indices)]
         item = self.dataset[dataset_idx]
+        
+        B = self.dataset.preprocessing_params["num_bins"]
 
         frames = item['frames']  # (N, H, W)
-        grids = item['grids']  # (N-1, 5, H, W)
+        grids = item['grids']  # (N-1, B, H, W)
         
         if 'optical_flows' in item:
             flows = item["optical_flows"] # (N-1, 2, H, W)
@@ -106,9 +108,11 @@ class ECOCODatasetWrapper(Dataset):
         # Normalize frames to [0, 1]
 
         if isinstance(frames, np.ndarray):
-           frames = frames.astype(np.float32) / 255.0
+            if frames.dtype != np.float32:
+                frames = frames.astype(np.float32) / 255.0
         else:
-            frames = frames.float() / 255.
+            if torch.any(frames > 2.0):
+                frames = frames.float() / 255.
 
         if isinstance(grids, np.ndarray):
             grids = grids.astype(np.float32)
@@ -130,7 +134,7 @@ class ECOCODatasetWrapper(Dataset):
             # Extract what we have
             frame_sequence = frames[:actual_length]
             grid_sequence = grids[:actual_length - 1] if actual_length > 1 else np.zeros(
-                (0, 5, grids.shape[2], grids.shape[3]), dtype=np.float32)
+                (0, B, grids.shape[2], grids.shape[3]), dtype=np.float32)
             
             if flows is not None:
                 flows_sequence = flows[:actual_length - 1] if actual_length > 1 else np.zeros(
@@ -145,7 +149,7 @@ class ECOCODatasetWrapper(Dataset):
                 frame_sequence = np.concatenate([frame_sequence, frame_padding], axis=0)
 
                 # Pad grids
-                grid_padding = np.zeros((self.sequence_length - actual_length, 5, grids.shape[2], grids.shape[3]),
+                grid_padding = np.zeros((self.sequence_length - actual_length, B, grids.shape[2], grids.shape[3]),
                                         dtype=np.float32)
                 if len(grid_sequence) > 0:
                     grid_sequence = np.concatenate([grid_sequence, grid_padding], axis=0)
@@ -164,7 +168,7 @@ class ECOCODatasetWrapper(Dataset):
 
             # Add initial zero grid (representing no events before first frame)
             grid_sequence = np.concatenate([
-                np.zeros((1, 5, grids.shape[2], grids.shape[3]), dtype=np.float32),
+                np.zeros((1, B, grids.shape[2], grids.shape[3]), dtype=np.float32),
                 grid_sequence[:self.sequence_length - 1]
             ], axis=0)
 
@@ -196,7 +200,7 @@ class ECOCODatasetWrapper(Dataset):
                     prev_flow = flows[start_idx - 1]
             else:
                 # Use zeros if at the beginning
-                prev_grid = np.zeros((5, grids.shape[2], grids.shape[3]), dtype=np.float32)
+                prev_grid = np.zeros((B, grids.shape[2], grids.shape[3]), dtype=np.float32)
                 prev_flow = np.zeros((2, grids.shape[2], grids.shape[3]), dtype=np.float32)
 
             grid_sequence = np.concatenate([
@@ -215,7 +219,7 @@ class ECOCODatasetWrapper(Dataset):
 
         # Convert to tensors
         frame_sequence = torch.from_numpy(frame_sequence).unsqueeze(1)  # (L, 1, H, W)
-        grid_sequence = torch.from_numpy(grid_sequence)  # (L, 5, H, W)
+        grid_sequence = torch.from_numpy(grid_sequence)  # (L, B, H, W)
 
         if flow_sequence is not None:
             flow_sequence = torch.from_numpy(flow_sequence)

@@ -46,6 +46,7 @@ class SiliconRetinaConfig:
 
 def preprocess_input(img, config):
     if config.apply_log_to_input:
+        print("applied log")
         img = torch.log(255.0 * img + 1e-3) / 5.54126393731521
     return torch.clamp(img, 0., 1.0)
 

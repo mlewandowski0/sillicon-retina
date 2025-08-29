@@ -18,8 +18,8 @@
 
         "data_root": "src/neural_network/data/ecoco_depthmaps_test",
         "cache_folder": "src/neural_network/data/ecoco_cache",
-        "train_limit": null,
-        "val_limit": null,
+        "train_limit": 4,
+        "val_limit": 4,
         "skip_frames": 1,
 
         "batch_size": 2,
@@ -44,7 +44,7 @@
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": true,
+        "use_wandb": false,
 
         "silicon_retina_config": {
         "alpha1": 0.5,
@@ -67,12 +67,14 @@
         "HPF1_mode": 0,
         "HPF1_param": 0.42,
         "HPF2_mode": 1,
-        "HPF2_param": 0.5,
+        "HPF2_param": 0.25,
         "apply_log_to_input": false
         },
-        "event_representation_class": 1,
+        "event_representation_class": 3,
         "event_representation_params": {
-            "c_ns" : 28.9351851,
-             "hashed_jitter" : true
+            "tau_fast_ms" : 20,
+             "tau_slow_ms" : 80,
+             "tau_ts_ms" : 50,
+             "asinh_k" : 0.1
         }
     }

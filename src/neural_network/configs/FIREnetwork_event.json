@@ -1,5 +1,5 @@
 {
-        "num_bins": 5,
+        "num_bins": 2,
         "num_prev_images": 3,
 
         "burn_in_steps" : 10,
@@ -72,6 +72,5 @@
         },
         "event_representation_class": 1,
         "event_representation_params": {
-            "B" : 5
         }
     }

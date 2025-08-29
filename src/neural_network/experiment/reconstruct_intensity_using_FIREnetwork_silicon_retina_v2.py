@@ -280,8 +280,10 @@ if __name__ == "__main__":
             config=config,
             name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
+        
+    INP = config.get("num_bins", 5)
 
-    model = FIRE_network(in_ch=5,
+    model = FIRE_network(in_ch=INP,
                          hid1=config["hid1"],
                          ks1=config["ks1"],
                          add_bn=config["add_bn"],
@@ -296,6 +298,7 @@ if __name__ == "__main__":
     event_representation = config["event_representation_class"]
     event_representation = EventRepresentation(event_representation)
     event_representation_params = config["event_representation_params"]
+    event_representation_params["num_bins"] = config.get("num_bins", 5)
     
 
     force_recomputing = config.get("force_recomputing", False)
