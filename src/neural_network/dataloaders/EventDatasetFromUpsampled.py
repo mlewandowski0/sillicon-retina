@@ -16,21 +16,31 @@ class EventDatasetFromUpsampled(Dataset):
 
 
     def __init__(self, directory,
+                       preprocessing_params,
+                       log_scale=True,
                        mode = "event",
                        B = 5,
                        contrast_threshold_neg = 0.2,
                        contrast_threshold_pos = 0.2,
                        force_recomputing=False,
                        device="cuda",
+                       verbose=False,
                         limit=-1,
                        grids_dtype=np.float16):
 
+        self.preprocessing_params = preprocessing_params 
+
         self.directory = directory
         self.mode = mode
-        self.B = B
+        self.B = preprocessing_params.get("num_bins", 5)
+        self.log_scale = log_scale
         self.force_recomputing = force_recomputing
         self.device = device
         self.grids_dtype = grids_dtype
+        self.verbose = verbose
+        
+        self.contrast_threshold_neg = preprocessing_params.get("contrast_threshold_neg", 0.2)
+        self.contrast_threshold_pos = preprocessing_params.get("contrast_threshold_pos", 0.2)
 
         # load glboal metadata once
         with open(os.path.join(directory, "metadata.json"), "r") as f:
@@ -50,14 +60,14 @@ class EventDatasetFromUpsampled(Dataset):
 
         # ESIM
         self.event_simulator = esim_torch.ESIM(
-            contrast_threshold_neg=contrast_threshold_neg,
-            contrast_threshold_pos=contrast_threshold_pos,
+            contrast_threshold_neg=self.contrast_threshold_neg,
+            contrast_threshold_pos=self.contrast_threshold_pos,
             refractory_period_ns=0,
         )
 
         # Cache filename builder bound with thresholds
         self._mk_paths = lambda folder: _mk_cache_paths_events(
-            folder, B, contrast_threshold_neg, contrast_threshold_pos
+            folder, B, self.contrast_threshold_neg, self.contrast_threshold_pos
         )
 
     def __len__(self):
@@ -91,8 +101,7 @@ class EventDatasetFromUpsampled(Dataset):
             grids_np = _memmap_load(paths['grids'])
 
             # (T+1, H, W) uint8
-            raw_frames = np.load(os.path.join(folder, "raw_images.npz"))['raw_images'] / 255.
-            raw_frames = raw_frames[1:]
+            frames_np = _memmap_load(paths['frames'])
 
             x_np = _memmap_load(paths["x"])  # uint16
             y_np = _memmap_load(paths["y"])  # uint16
@@ -109,7 +118,7 @@ class EventDatasetFromUpsampled(Dataset):
                 "p": torch.as_tensor(p_np),
             }
             result = {
-                "frames": raw_frames,  # keep as numpy (cheap, contiguous)
+                "frames": np.array(frames_np['raw_images']).astype(np.float32) / 255.,  # keep as numpy (cheap, contiguous)
                 "events": events,
                 "grids": event_grids,  # half precision on load
             }
@@ -130,13 +139,18 @@ class EventDatasetFromUpsampled(Dataset):
         timestamps_ns = (timestamps * 1e9).astype("int64")
 
         # Log intensities on GPU
-        log_images = np.log(frames.astype("float32") / 255.0 + 1e-4)
-        log_images = torch.from_numpy(log_images).to(self.device, non_blocking=True)
+        
+        if self.log_scale:
+            input_images = np.log(frames.astype("float32") / 255.0 + 1e-4)
+        else:
+            input_images = frames.astype("float32") / 255.0
+            
+        input_images = torch.from_numpy(input_images).to(self.device, non_blocking=True)
         timestamps_ns_t = torch.from_numpy(timestamps_ns).to(self.device, non_blocking=True)
 
         # reset + simulate events
         self.event_simulator.reset()
-        events = self.event_simulator.forward(log_images, timestamps_ns_t)
+        events = self.event_simulator.forward(input_images, timestamps_ns_t)
         x, y, t, p = events["x"], events["y"], events["t"], events["p"]  # GPU tensors
 
         # images: list of counts per segment (as in your original code)
@@ -167,8 +181,8 @@ class EventDatasetFromUpsampled(Dataset):
         rights = torch.searchsorted(t, t_bounds[1:], right=False)  # end indices
 
         grids = []
+        # load the raw_frames
         raw_frames = np.load(os.path.join(folder, "raw_images.npz"))['raw_images'] / 255.
-        raw_frames = raw_frames[1:]
 
         for k in range(lefts.numel()):
             s = int(lefts[k].item())

@@ -1,9 +1,10 @@
 {
         "num_bins": 5,
         "num_prev_images": 3,
-        "sequence_length": 20,
+        "sequence_length": 30,
+        "burn_in_steps" : 10,
 
-        "hid1" : 16,
+        "hid1" : 32,
         "ks1" : 3,
         "add_bn" : false,
         "out_sigmoid" : false,
@@ -18,7 +19,7 @@
         "skip_frames": 1,
 
         "batch_size": 2,
-        "num_epochs": 200,
+        "num_epochs": 150,
         "learning_rate": 1e-4,
         "weight_decay": 1e-4,
         "lr_step_size": 10,
@@ -30,14 +31,14 @@
 
         "debug_save" : true,
         "debug_iters" : 100,
-        "debug_folder": "src/neural_network/debug/test_FIRE",
+        "debug_folder": "src/neural_network/debug/FIRE_events",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE",
+        "checkpoint_dir": "src/neural_network/checkpoints/FIRE_events",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
-        "num_workers": 4,
-        "use_wandb": false
+        "num_workers": 10,
+        "use_wandb": true
     }
