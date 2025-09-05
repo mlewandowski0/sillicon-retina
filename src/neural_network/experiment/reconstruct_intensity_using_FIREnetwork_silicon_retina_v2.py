@@ -268,25 +268,23 @@ if __name__ == "__main__":
 
     print("E2VID Training on ECOCO Dataset")
     print("================================")
-    print("\nConfiguration:")
-    for key, value in config.items():
-        print(f"  {key}: {value}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device: ", device)
 
+    use_wandb = config.get("use_wandb", False)
+    config["use_wandb"] = use_wandb
     if config.get('use_wandb', False):
         wandb.init(
             project="e2vid-ecoco",
             config=config,
             name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
-        
+
     INP = config.get("num_bins", 5)
-    
-    
     # get result file
     result_file = config.get("result_file", "result.json")
+    config["num_bins"] = INP
 
     model = FIRE_network(in_ch=INP,
                          hid1=config["hid1"],
@@ -296,19 +294,29 @@ if __name__ == "__main__":
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
 
     # Silicon Retina Dataset parameters
-    
+    use_upsampled_from_OF = config.get("use_upsampled_from_OF", False)
+    config["use_upsampled_from_OF"] = use_upsampled_from_OF
+
+    # verbose flag
+    verbose = config.get("verbose", False)
+    config["verbose"] = verbose
+
     # Silicon Retina parameters
     se_cfg = SiliconRetinaConfig().from_dict(config["silicon_retina_config"])
 
     event_representation = config["event_representation_class"]
     event_representation = EventRepresentation(event_representation)
     event_representation_params = config["event_representation_params"]
+
     event_representation_params["num_bins"] = config.get("num_bins", 5)
+    config["num_bins"] = event_representation_params["num_bins"]
     
 
     force_recomputing = config.get("force_recomputing", False)
+    config["force_recomputing"] = force_recomputing
+
     log_input = config.get("log_input", False)
-    
+
     # parameters for dataset checking
     check_dataset = config.get("check_dataset", False)
     min_grid_occupancy = config.get("min_grid_occupancy", 0.01)
@@ -316,14 +324,28 @@ if __name__ == "__main__":
     min_per_pixel_occupancy = config.get("min_per_pixel_occupancy", 0.0)
     max_per_pixel_occupancy = config.get("max_per_pixel_occupancy", 1.0) 
 
+    config["log_input"] = log_input
+
+    skip_frames = config.get("skip_frames", False)
+    config["skip_frames"] = skip_frames
+
+    use_lpips = config.get('use_lpips', False)
+    config["use_lpips"] = use_lpips
+
+    # print configuration
+    print("\nConfiguration:")
+    for key, value in config.items():
+        print(f"  {key}: {value}")
+
     train_base = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
                                    config=se_cfg,
                                    preprocessing_params=event_representation_params,
                                    preprocessing_type=event_representation,
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
-                                   limit=config["train_limit"])
-    
+                                   limit=config["train_limit"],
+                                   use_upsampled_from_OF=use_upsampled_from_OF,
+                                   verbose=verbose)
     # check dataset if needed 
     if check_dataset:
         valid, grids_occupancy_train, per_pixel_occupany_train = validat_occupancy_dataset(train_base, 
@@ -336,7 +358,7 @@ if __name__ == "__main__":
     train_dataset = ECOCODatasetWrapper(
         train_base,
         sequence_length=config['sequence_length'],
-        skip_frames=config.get('skip_frames', 1),
+        skip_frames=skip_frames,
         augment=config["augment"],
     )
 
@@ -356,7 +378,9 @@ if __name__ == "__main__":
                                    preprocessing_type=event_representation,
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
-                                   limit=config["val_limit"])
+                                   limit=config["val_limit"],
+                                   use_upsampled_from_OF=use_upsampled_from_OF,
+                                   verbose=verbose)
 
     # check dataset if needed 
     if check_dataset:
@@ -379,7 +403,7 @@ if __name__ == "__main__":
     val_dataset = ECOCODatasetWrapper(
         val_base,
         sequence_length=config['sequence_length'],
-        skip_frames=config.get('skip_frames', 1),
+        skip_frames=skip_frames,
         augment=config["augment"]
     )
 
@@ -424,7 +448,7 @@ if __name__ == "__main__":
     print(f"Val dataset: {len(val_dataset)} sequences")
 
     # Losses and optimizer
-    criterion = PerceptualLoss(use_lpips=config.get('use_lpips', False))
+    criterion = PerceptualLoss(use_lpips=use_lpips)
     temporal_criterion = TemporalConsistencyLoss()  # ensure it runs on same device internally
 
     optimizer = optim.Adam(
@@ -458,7 +482,7 @@ if __name__ == "__main__":
 
         print(f"\nTrain Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 
-        if config.get('use_wandb', False):
+        if use_wandb:
             wandb.log({
                 'train_loss_epoch': train_loss,
                 'val_loss_epoch': val_loss,

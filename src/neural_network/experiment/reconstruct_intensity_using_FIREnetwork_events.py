@@ -54,6 +54,10 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         enabled=(use_amp and amp_dtype is torch.float16)  # scaling only for fp16 on CUDA
     )
 
+    burn_in_steps = int(config.get("burn_in_steps", 0))
+    print("burn in steps", burn_in_steps)
+    max_shift = int(config.get("shift_loss_max_offset", 1))
+
     for batch_idx, batch in enumerate(pbar):
         # shapes:
         # frames: (B, L, 1, H, W)
@@ -82,11 +86,23 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         perceptual_term_sum = 0.0
         temporal_consistency_term_sum = 0.0
 
+        smooth_term_sum = 0.0
+        edge_term_sum = 0.0
+
         Igt_t = None
         Ihat_t = None
 
+
         with torch.amp.autocast(device_type, enabled=use_amp, dtype=amp_dtype):
-            for t in range(L):
+            # WARM-UP (no loss)
+            bi = min(burn_in_steps, L)
+            for t in range(bi):
+                if not valid[:, t].any():
+                    continue
+                _ = model(grids[:, t])
+
+            # MAIN Pass
+            for t in range(bi, L):
                 # skip time step if no sample in batch has it valid
                 if not valid[:, t].any():
                     continue
@@ -107,6 +123,7 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 
                 loss = loss + perceptual_loss + temporal_consistency_term
 
+                # stats
                 perceptual_term_sum += float(perceptual_loss.detach().cpu().item())
                 temporal_consistency_term_sum += float(temporal_consistency_term.detach().cpu().item())
 
@@ -182,6 +199,9 @@ def validate(model, loader, device, epoch, config,
     model.eval()
     total = 0.0
 
+    burn_in_steps = int(config.get("burn_in_steps", 0))
+    max_shift = int(config.get("shift_loss_max_offset", 1))
+
     pbar = tqdm(loader, desc=f"Validation {epoch + 1}/{config['num_epochs']}")
 
     for batch_idx, batch in enumerate(pbar):
@@ -200,7 +220,12 @@ def validate(model, loader, device, epoch, config,
         Ihat_prev = None
         Igt_prev = None
 
-        for t in range(L):
+        bi = min(burn_in_steps, L)
+        for t in range(bi):
+            if not valid[:, t].any(): continue
+            _ = model(grids[:, t])
+
+        for t in range(bi, L):
             if not valid[:, t].any():
                 continue
 
@@ -231,6 +256,7 @@ def validate(model, loader, device, epoch, config,
     return total / max(1, len(loader))
 
 
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("-c", "--config", required=True, help="path to json config file")
@@ -242,13 +268,12 @@ if __name__ == "__main__":
 
     print("E2VID Training on ECOCO Dataset")
     print("================================")
-    print("\nConfiguration:")
-    for key, value in config.items():
-        print(f"  {key}: {value}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device: ", device)
 
+    use_wandb = config.get("use_wandb", False)
+    config["use_wandb"] = use_wandb
     if config.get('use_wandb', False):
         wandb.init(
             project="e2vid-ecoco",
@@ -256,18 +281,55 @@ if __name__ == "__main__":
             name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
 
-    model = FIRE_network(in_ch=5,
+    INP = config.get("num_bins", 5)
+    config["num_bins"] = INP
+
+    model = FIRE_network(in_ch=INP,
                          hid1=config["hid1"],
                          ks1=config["ks1"],
                          add_bn=config["add_bn"],
                          out_sigmoid=config["out_sigmoid"]).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
+    
+    
+    # Silicon Retina Dataset parameters
+    use_upsampled_from_OF = config.get("use_upsampled_from_OF", False)
+    config["use_upsampled_from_OF"] = use_upsampled_from_OF
+
+    # verbose flag
+    verbose = config.get("verbose", False)
+    config["verbose"] = verbose
+
+    event_representation_params = config.get("event_representation_params", {})
+    event_representation_params["num_bins"] = config.get("num_bins", 5)
+    config["num_bins"] = event_representation_params["num_bins"]
+    
+
+    force_recomputing = config.get("force_recomputing", False)
+    config["force_recomputing"] = force_recomputing
+
+    log_input = config.get("log_input", False)
+    config["log_input"] = log_input
+
+    skip_frames = config.get("skip_frames", False)
+    config["skip_frames"] = skip_frames
+
+    use_lpips = config.get('use_lpips', False)
+    config["use_lpips"] = use_lpips
+
+    # print configuration
+    print("\nConfiguration:")
+    for key, value in config.items():
+        print(f"  {key}: {value}")
+
 
     train_base = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
                                    mode="event",
-                                   B=5,
-                                   force_recomputing=False,
-                                   limit=config["train_limit"])
+                                   preprocessing_params=event_representation_params,
+                                   log_scale=log_input,
+                                   force_recomputing=force_recomputing,
+                                   limit=config["train_limit"],
+                                   verbose=verbose)
 
     train_dataset = ECOCODatasetWrapper(
         train_base,
@@ -278,14 +340,16 @@ if __name__ == "__main__":
 
     val_base = EventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
                                    mode="event",
-                                   B=5,
-                                   force_recomputing=False,
-                                   limit=config["val_limit"])
+                                   preprocessing_params=event_representation_params,
+                                   log_scale=log_input,
+                                   force_recomputing=force_recomputing,
+                                   limit=config["train_limit"],
+                                   verbose=verbose)
 
     val_dataset = ECOCODatasetWrapper(
         val_base,
         sequence_length=config['sequence_length'],
-        skip_frames=config.get('skip_frames', 1),
+        skip_frames=skip_frames,
         augment=config["augment"]
     )
 
@@ -296,8 +360,7 @@ if __name__ == "__main__":
         num_workers=config['num_workers'],
         pin_memory=True,
         drop_last=False,
-        prefetch_factor=config['prefetch_factor'],
-    )
+        prefetch_factor=config['prefetch_factor'])
 
     val_loader = DataLoader(
         val_dataset,
@@ -305,8 +368,7 @@ if __name__ == "__main__":
         shuffle=False,
         num_workers=config['num_workers'],
         pin_memory=False,
-        prefetch_factor=config['prefetch_factor'],
-    )
+        prefetch_factor=config['prefetch_factor'])
 
     # profiling
     profile_on = config.get("profile_on", False)

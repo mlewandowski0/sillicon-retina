@@ -16,3 +16,11 @@ wandb/*
 *.pth
 *.sillicon_retina_python_simulation
 models/*
+dataset_packed
+silicon_retina_grids
+src/neural_network/reusing_videos/upsampling/input/frames
+src/neural_network/reusing_videos/upsampling/output
+silicon_retina_grids.zip
+dataset_packed.zip
+small_batch.zip
+visualizations.zip

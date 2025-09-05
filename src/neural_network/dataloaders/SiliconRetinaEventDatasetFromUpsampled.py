@@ -58,6 +58,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                        log_scale=False,
                        device="cuda",
                         limit=-1,
+                        use_upsampled_from_OF=False,
                        grids_dtype=np.float16,
                        verbose : bool = False):
 
@@ -65,7 +66,8 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         self.directory = directory
         self.preprocessing_type = preprocessing_type
         self.preprocessing_params = preprocessing_params
-        
+        self.use_upsampled_from_OF = use_upsampled_from_OF
+
         self.height = height
         self.width = width
         self.force_recomputing = force_recomputing
@@ -214,7 +216,14 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                 properties["silicon_retina_config"] = self.config.to_dict()  
                 properties_dirty = True   
         else:
-            have_cache = False       
+            have_cache = False
+
+        # check if the same video is used (upsampled using optical flow (OF) vs fixed frame rate (FF))
+        if have_cache and "used_OF" in properties:
+            if properties["used_OF"] != self.use_upsampled_from_OF:
+                have_cache = False
+        else:
+            have_cache = False
 
         # another check : the preprocessing and params for preprocessing has to match 
         if have_cache and "preprocessing_type" in properties:
@@ -281,9 +290,17 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         del_cache_of_folder(folder)
 
         # slow path ( first time read and data cacheing)
-        frames = self._load_video_gray(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))  # (N, H, W), uint8
-        timestamps = np.asarray(properties["timestamps_FF"], dtype=np.float64)
-        images = properties["new_images_per_pair_FF"]  # list of counts per segment
+        if self.use_upsampled_from_OF:
+            frames = self._load_video_gray(os.path.join(folder, "video_upsampled_using_optical_flow.mp4"))
+            timestamps = np.asarray(properties["timestamps_OF"], dtype=np.float64)
+            images = properties["new_images_per_pair_OF"]  # list of counts per segment
+            if self.verbose:
+                print("read upsampled from OF")
+        else:
+            frames = self._load_video_gray(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))  # (N, H, W), uint8
+            timestamps = np.asarray(properties["timestamps_FF"], dtype=np.float64)
+            images = properties["new_images_per_pair_FF"]  # list of counts per segment
+
         timestamps_ns = (timestamps * 1e9).astype("int64")
 
         # Log intensities on GPU
@@ -352,6 +369,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         properties["silicon_retina_config"] = self.config.to_dict()  
         properties["preprocessing_type"] = self.preprocessing_type.name
         properties["preprocessing_params"] = self.preprocessing_params
+        properties["used_OF"] = self.use_upsampled_from_OF
         properties_dirty = True
 
         if self.verbose:
