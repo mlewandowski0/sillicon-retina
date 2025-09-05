@@ -13,17 +13,17 @@
         "use_amp" : true,
         "amp_dtype" : "fp16",
 
-        "force_recomputing" : false,
+        "force_recomputing" : true,
         "log_input" : false,
 
         "data_root": "src/neural_network/data/ecoco_depthmaps_test",
         "cache_folder": "src/neural_network/data/ecoco_cache",
-        "train_limit": 4,
-        "val_limit": 4,
+        "train_limit": null,
+        "val_limit": null,
         "skip_frames": 1,
 
         "batch_size": 2,
-        "num_epochs": 200,
+        "num_epochs": 125,
         "learning_rate": 1e-4,
         "weight_decay": 1e-4,
         "lr_step_size": 10,
@@ -34,17 +34,17 @@
         "skip_type" : "sum",
 
         "debug_save" : true,
-        "debug_iters" : 500,
-        "debug_folder": "src/neural_network/debug/test_FIRE_retina_length=30_burnin=10_no_log_basic_se_reg_events_t+lin",
+        "debug_iters" : 200,
+        "debug_folder": "src/neural_network/debug/FIRE_retina_length=30_burnin=10_FIRE_retina_spkt_trace5",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/test_FIRE_retina_length=30_burnin=10_no_log_basic_se_reg_events_t+lin",
+        "checkpoint_dir": "src/neural_network/checkpoints/FIRE_retina_length=30_burnin=10_FIRE_retina_spkt_trace5",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": false,
+        "use_wandb": true,
 
         "silicon_retina_config": {
         "alpha1": 0.5,

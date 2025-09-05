@@ -1,0 +1,2 @@
+python -m src.neural_network.experiment.reconstruct_intensity_using_FIREnetwork_silicon_retina_v2 -c src/neural_network/configs/FIREnetwork_event_spkt_trace5.json
+python -m src.neural_network.experiment.reconstruct_intensity_using_FIREnetwork_silicon_retina_v2 -c src/neural_network/configs/FIREnetwork_event_bins_eq2.json
