@@ -370,6 +370,8 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             with open(os.path.join(self.data_files[idx], "params.json"), "w") as f:
                 json.dump(properties, f, indent=4)
         
+        
+        
         return result
 
 

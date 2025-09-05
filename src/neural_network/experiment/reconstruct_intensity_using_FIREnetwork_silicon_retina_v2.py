@@ -21,6 +21,7 @@ from src.neural_network.dataloaders.SiliconRetinaEventDatasetFromUpsampled impor
 
 from torch.optim.lr_scheduler import StepLR
 from src.neural_network.dataloaders.Encodings import EventRepresentation
+from src.neural_network.utils.util import validat_occupancy_dataset, write_optuna_result
 
 torch.backends.cudnn.benchmark = True
 
@@ -282,6 +283,10 @@ if __name__ == "__main__":
         )
         
     INP = config.get("num_bins", 5)
+    
+    
+    # get result file
+    result_file = config.get("result_file", "result.json")
 
     model = FIRE_network(in_ch=INP,
                          hid1=config["hid1"],
@@ -303,6 +308,13 @@ if __name__ == "__main__":
 
     force_recomputing = config.get("force_recomputing", False)
     log_input = config.get("log_input", False)
+    
+    # parameters for dataset checking
+    check_dataset = config.get("check_dataset", False)
+    min_grid_occupancy = config.get("min_grid_occupancy", 0.01)
+    max_grid_occupancy = config.get("max_grid_occupancy", 0.6)
+    min_per_pixel_occupancy = config.get("min_per_pixel_occupancy", 0.0)
+    max_per_pixel_occupancy = config.get("max_per_pixel_occupancy", 1.0) 
 
     train_base = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_train"),
                                    config=se_cfg,
@@ -311,6 +323,15 @@ if __name__ == "__main__":
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
                                    limit=config["train_limit"])
+    
+    # check dataset if needed 
+    if check_dataset:
+        valid, grids_occupancy_train, per_pixel_occupany_train = validat_occupancy_dataset(train_base, 
+                                                                                min_grid_occupancy=min_grid_occupancy, 
+                                                                                max_grid_occupancy=max_grid_occupancy,
+                                                                                min_per_pixel_occupancy=min_per_pixel_occupancy,
+                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy)
+    
 
     train_dataset = ECOCODatasetWrapper(
         train_base,
@@ -319,13 +340,41 @@ if __name__ == "__main__":
         augment=config["augment"],
     )
 
-    val_base = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "upsampled_validation"),
+
+    # use train or validation for validation
+    val_on_train = config.get("val_on_train", False)
+
+    if val_on_train:
+        val_path = os.path.join("src", "neural_network", "data", "upsampled_train")
+    else:
+        val_path = os.path.join("src", "neural_network", "data", "upsampled_validation")
+
+
+    val_base = SiliconRetinaEventDatasetFromUpsampled(directory=val_path,
                                    config=se_cfg,
                                    preprocessing_params=event_representation_params,
                                    preprocessing_type=event_representation,
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
                                    limit=config["val_limit"])
+
+    # check dataset if needed 
+    if check_dataset:
+        valid, grids_occupancy_val, per_pixel_occupany_val = validat_occupancy_dataset(val_base, 
+                                                                                min_grid_occupancy=min_grid_occupancy, 
+                                                                                max_grid_occupancy=max_grid_occupancy,
+                                                                                min_per_pixel_occupancy=min_per_pixel_occupancy,
+                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy)
+
+
+    # compute average occupancy
+    if check_dataset:
+        total = len(train_base) + len(val_base)
+        grids_occupancy = (grids_occupancy_train * len(train_base) + grids_occupancy_val * len(val_base)) / total
+        per_pixel_occupany = (per_pixel_occupany_train * len(train_base) + per_pixel_occupany_val * len(val_base)) / total
+        print(f"Average occupancy over train and val datasets: Grids occupancy: {grids_occupancy*100:.4f} %, Per pixel occupancy: {per_pixel_occupany*100:.4f} %")
+
+
 
     val_dataset = ECOCODatasetWrapper(
         val_base,
@@ -434,3 +483,8 @@ if __name__ == "__main__":
     print("\n" + "=" * 50)
     print("Training completed!")
     print(f"Best validation loss: {best_val_loss:.4f}")
+    
+    if check_dataset:
+        write_optuna_result(result_file, best_value=best_val_loss, pixel_occupancy=per_pixel_occupany, grid_occupancy=grids_occupancy)
+    else:
+        write_optuna_result(result_file, best_value=best_val_loss, pixel_occupancy=-1, grid_occupancy=-1)
