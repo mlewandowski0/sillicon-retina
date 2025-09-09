@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 
 import optuna
 from optuna.samplers import TPESampler
+import shutil
 
 
 from esim_torch.silicon_retina_torch import SiliconRetinaConfig
@@ -27,11 +28,11 @@ def suggest_silicon_retina_params(trial: optuna.trial.Trial) -> Dict[str, Any]:
     p["alpha2"] = p["alpha1"]
     
     p["V_BIP_LPF_alpha"] = trial.suggest_float("V_BIP_LPF_alpha", 0.05, 0.95)
-    p["lambda_OPL"] = trial.suggest_float("lambda_OPL", 0.5, 5.0)
+    p["lambda_OPL"] = trial.suggest_float("lambda_OPL", 2.0, 5.0)
     p["G_A_zero"] = trial.suggest_float("G_A_zero", 0.0, 1.5)
     p["lambda_A"] = trial.suggest_float("lambda_A", 0.0, 2.0)
     p["p1"] = trial.suggest_float("p1", 0.0, 1.0)
-    p["I_bias_on"] = trial.suggest_float("I_bias_on", 1e-4, 0.1, log=True)
+    p["I_bias_on"] = trial.suggest_float("I_bias_on", 1e-4, 0.5)
     p["p2"] = trial.suggest_float("p2", 0.2, 3.0)
     p["p3"] = trial.suggest_float("p3", 0.1, 2.0)
     p["U_rest_on"]  = trial.suggest_float("U_rest_on",  -0.1, 0.1)
@@ -133,14 +134,16 @@ def objective_factory(args, study_root: Path):
 
         # Launch training
         proc = run_training(args.module, config_path, result_file, args.cuda, args.timeout_s)
+        print(proc)
 
         # Try to read the result file (preferred)
         result = read_result_file(result_file)
-
+ 
         # Handle crashes/timeouts / missing results
         if proc.returncode != 0 or result is None:
-            # If your runner printed a structured line, you could parse here as fallback.
-            # Otherwise, prune to save time.
+            print("*** Trial failed! *****")
+            print(result) 
+                   
             trial.set_user_attr("returncode", proc.returncode)
             tail = (proc.stderr or "")[-2000:]
             trial.set_user_attr("stderr_tail", tail)
@@ -212,7 +215,7 @@ def save_best_artifacts(study: optuna.Study, args, study_root: Path):
 def main():
     ap = argparse.ArgumentParser()
     # Runner module (use your correct path; override if needed)
-    ap.add_argument("--module", default="src.neural_network.experiments.reconstruct_intensity_using_FIREnetwork_silicon_retina.v2",
+    ap.add_argument("--module", default="src.neural_network.experiment.reconstruct_intensity_using_FIREnetwork_silicon_retina_v2",
                     help="Python -m path to your training runner.")
     ap.add_argument("--storage", default="sqlite:///retina_bo.sqlite3", help="Optuna storage for resume/parallel.")
     ap.add_argument("--study-name", default=f"retina_bo_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
@@ -243,7 +246,7 @@ def main():
 
     # Dataset guardrails (mirrors your validator)
     ap.add_argument("--min-grid-occupancy", type=float, default=0.01)
-    ap.add_argument("--max-grid-occupancy", type=float, default=0.6)
+    ap.add_argument("--max-grid-occupancy", type=float, default=0.7)
     ap.add_argument("--min-per-pixel-occupancy", type=float, default=0.0)
     ap.add_argument("--max-per-pixel-occupancy", type=float, default=1.0)
     ap.add_argument("--val-on-train", action="store_true")

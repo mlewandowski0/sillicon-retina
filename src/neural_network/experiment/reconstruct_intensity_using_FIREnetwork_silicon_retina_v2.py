@@ -352,7 +352,8 @@ if __name__ == "__main__":
                                                                                 min_grid_occupancy=min_grid_occupancy, 
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
-                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy)
+                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy,
+                                                                                result_file=result_file)
     
 
     train_dataset = ECOCODatasetWrapper(
@@ -388,7 +389,8 @@ if __name__ == "__main__":
                                                                                 min_grid_occupancy=min_grid_occupancy, 
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
-                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy)
+                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy,
+                                                                                result_file=result_file)
 
 
     # compute average occupancy
