@@ -4,6 +4,8 @@ from dataclasses import dataclass, asdict, fields
 
 @dataclass
 class SiliconRetinaConfig:
+    H : int = 256
+    W : int = 256
     alpha1 : float = 0.5
     alpha2 : float = 0.5
     V_BIP_LPF_alpha : float = 0.5
@@ -24,13 +26,18 @@ class SiliconRetinaConfig:
     U_reset_on : float = 0.0
     U_reset_off : float = 0.0
     
-    HPF1_mode : int = 0
+    HPF1_mode : silicon_retina_cuda.HPF_MODE = silicon_retina_cuda.HPF_MODE.SUB
     HPF1_param : float = 0.5
     
-    HPF2_mode : int = 0 
+    HPF2_mode : silicon_retina_cuda.HPF_MODE = silicon_retina_cuda.HPF_MODE.SUB
     HPF2_param : float = 0.5
 
+    blur1_mode : silicon_retina_cuda.BLUR_MODE = silicon_retina_cuda.BLUR_MODE.BLUR_AVG
+    blur2_mode : silicon_retina_cuda.BLUR_MODE = silicon_retina_cuda.BLUR_MODE.BLUR_AVG
+
+
     apply_log_to_input : bool = False
+    turn_off_feedback : bool = False
     
     # niceties
     def to_dict(self) -> dict:
@@ -43,6 +50,9 @@ class SiliconRetinaConfig:
         filtered = {k: v for k, v in d.items() if k in names}
         return cls(**filtered)
     
+    def to_cpp_struct(self) -> silicon_retina_cuda.SiliconRetinaParams:
+        return silicon_retina_cuda.SiliconRetinaParams(**self.to_dict())
+    
 
 def preprocess_input(img, config):
     if config.apply_log_to_input:
@@ -52,11 +62,11 @@ def preprocess_input(img, config):
 
 
 class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
-    def __init__(self, silicon_retina_config: SiliconRetinaConfig, T, height, width):
+    def __init__(self, silicon_retina_config: SiliconRetinaConfig, T):
         super(SiliconRetinaVerboseFloatCUDA, self).__init__()
+        self.width = silicon_retina_config.H
+        self.height = silicon_retina_config.W
         self.config = silicon_retina_config
-        self.width = width
-        self.height = height
         self.T = T
         
         self.register_buffer("LPF1", torch.zeros((self.T, self.height, self.width), dtype=torch.float32, device="cuda:0"))
@@ -126,37 +136,16 @@ class SiliconRetinaVerboseFloatCUDA(torch.nn.Module):
                                                                   self.V_LIF_off, 
                                                                   self.fired_on,
                                                                   self.fired_off,
-                                                                  self.T, self.height, self.width,
-                                                                  self.config.alpha1,
-                                                                  self.config.alpha2,
-                                                                  self.config.V_BIP_LPF_alpha,
-                                                                  self.config.lambda_OPL,
-                                                                  self.config.G_A_zero,
-                                                                  self.config.lambda_A,
-                                                                  self.config.p1,
-                                                                  self.config.I_bias_on,
-                                                                  self.config.I_bias_off,
-                                                                  self.config.p2,
-                                                                  self.config.p3,
-                                                                  self.config.U_rest_on,
-                                                                  self.config.U_rest_off,
-                                                                  self.config.U_th_on,
-                                                                  self.config.U_th_off,
-                                                                  self.config.U_reset_on,
-                                                                  self.config.U_reset_off,
-                                                                  self.config.HPF1_mode,
-                                                                  self.config.HPF1_param,
-                                                                  self.config.HPF2_mode,
-                                                                  self.config.HPF2_param
+                                                                  self.T, self.config.to_cpp_struct()
                                                                   )
 
 
 class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
-    def __init__(self, silicon_retina_config: SiliconRetinaConfig, height, width):
+    def __init__(self, silicon_retina_config: SiliconRetinaConfig):
         super(SiliconRetinaFloatCUDAOnline, self).__init__()
+        self.width = silicon_retina_config.W
+        self.height = silicon_retina_config.H
         self.config = silicon_retina_config
-        self.width = width
-        self.height = height
 
         self.register_buffer("LPF1",
                              torch.zeros((2, self.height, self.width), dtype=torch.float32, device="cuda:0"))
@@ -241,28 +230,7 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
                                                                   self.V_LIF_off,
                                                                   self.fired_on,
                                                                   self.fired_off,
-                                                                  t, self.height, self.width,
-                                                                  self.config.alpha1,
-                                                                  self.config.alpha2,
-                                                                  self.config.V_BIP_LPF_alpha,
-                                                                  self.config.lambda_OPL,
-                                                                  self.config.G_A_zero,
-                                                                  self.config.lambda_A,
-                                                                  self.config.p1,
-                                                                  self.config.I_bias_on,
-                                                                  self.config.I_bias_off,
-                                                                  self.config.p2,
-                                                                  self.config.p3,
-                                                                  self.config.U_rest_on,
-                                                                  self.config.U_rest_off,
-                                                                  self.config.U_th_on,
-                                                                  self.config.U_th_off,
-                                                                  self.config.U_reset_on,
-                                                                  self.config.U_reset_off,
-                                                                  self.config.HPF1_mode,
-                                                                  self.config.HPF1_param,
-                                                                  self.config.HPF2_mode,
-                                                                  self.config.HPF2_param)
+                                                                  t, self.config.to_cpp_struct())
 
 #class silicon_retina_cuda(torch.nn.Module):
 #    def __init__(self, ):

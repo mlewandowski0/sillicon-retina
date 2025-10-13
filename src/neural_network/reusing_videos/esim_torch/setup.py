@@ -15,8 +15,13 @@ setup(
         CUDAExtension(
             name='esim_torch.silicon_retina_cuda',
             sources=[
+                "src/esim_torch/silicon_retina_cuda.cpp",
                 'src/esim_torch/silicon_retina_cuda_kernel.cu',
-            ]
+            ],
+            extra_compile_args={
+                'cxx': ['-O3'],
+                'nvcc': ['-O3']
+            }
         )
     ],
     cmdclass={

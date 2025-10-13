@@ -13,10 +13,11 @@ if __name__ == "__main__":
                            refractory_period_ns=0)
     
   
+    FPS = 30
     print("Loading images")
-    image_files = sorted(glob.glob("../esim_py/tests/data/images/images/*.png"))
+    image_files = sorted(glob.glob("frames/*.png"))
     images = np.stack([cv2.imread(f, cv2.IMREAD_GRAYSCALE) for f in image_files])
-    timestamps_s = np.genfromtxt("../esim_py/tests/data/images/timestamps.txt")
+    timestamps_s = np.arange(0, len(images)) * 1.0/ FPS
 
     timestamps_ns = (timestamps_s * 1e9).astype("int64")
     log_images = np.log(images.astype("float32") / 255 + 1e-4)
@@ -34,16 +35,4 @@ if __name__ == "__main__":
     print(timestamps_ns)
     events = esim.forward(log_images, timestamps_ns)
 
-    # render events 
-    image = images[0]
-    
-    print("Plotting")
-    first_few_events = {k: v[:10000].cpu().numpy() for k,v in events.items()}
-    image_color = np.stack([image,image,image],-1)
-    image_color[first_few_events['y'], first_few_events['x'], :] = 0
-    image_color[first_few_events['y'], first_few_events['x'], first_few_events['p']] = 255
-
-    plt.imshow(image_color)
-    plt.savefig("esim_torch_test.png")
-    plt.show()
-    
+    print(events)

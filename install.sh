@@ -3,3 +3,5 @@ pip install wandb tqdm
 pip install lpips pandas
 pip install -U scikit-image
 pip install -U matplotlib
+pip install opencv-python
+pip install imageio-ffmpeg

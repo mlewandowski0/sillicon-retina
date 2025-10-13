@@ -7,7 +7,7 @@ import os
 import imageio
 
 from esim_torch import SiliconRetinaVerboseFloatCUDA , SiliconRetinaConfig
-
+from esim_torch.silicon_retina_cuda import BLUR_MODE
 
 if __name__ == "__main__":
     # Load the model
@@ -23,8 +23,10 @@ if __name__ == "__main__":
 
     imgs = torch.stack(imgs, dim=0).to("cuda:0")
 
-    config = SiliconRetinaConfig()
-    model = SiliconRetinaVerboseFloatCUDA(config, height=imgs.shape[1], width=imgs.shape[2], T=T)
+    config = SiliconRetinaConfig(H=imgs.shape[1], W=imgs.shape[2],
+                                 blur2_mode=BLUR_MODE.BLUR_NONE,
+                                 turn_off_feedback=False)
+    model = SiliconRetinaVerboseFloatCUDA(config, T=T)
     
     # Run the model
     fires_on, fires_off = model.forward(imgs)

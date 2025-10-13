@@ -4,10 +4,10 @@
 #include <iostream>
 #include <vector>
 #include <vector>
-#include "enums.h"
 #include <torch/extension.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
+#include "retina_params.h"
 
 #define CHECK_CUDA(x) TORCH_CHECK((x).is_cuda(), #x " must be a CUDA tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK((x).is_contiguous(), #x " must be contiguous")
@@ -30,6 +30,7 @@
             exit(EXIT_FAILURE);                                                   \
         }                                                                         \
     } while (0)
+
 
 __device__ __forceinline__ float fclampf(float x, float min, float max)
 {
@@ -54,44 +55,24 @@ __device__ float apply_blur_avg(int kernel_size, int W, int H,
     float cnt = 0.0f;
 
     int ks = kernel_size / 2;
-    if (kernel_size == 3)
+    
+    for (int dy = -ks; dy <= ks; ++dy)
     {
-        for (int dy = -1; dy <= 1; ++dy)
+        for (int dx = -ks; dx <= ks; ++dx)
         {
-            for (int dx = -1; dx <= 1; ++dx)
-            {
-                int ny = y + dy;
-                int nx = x + dx;
+            int ny = y + dy;
+            int nx = x + dx;
 
-                // bounds check
-                if (ny >= 0 && ny < H && nx >= 0 && nx < W)
-                {
-                    int neighbor_idx = ny * W + nx;
-                    output += input[curr_t_offset + neighbor_idx];
-                    cnt += 1.0f;
-                }
+            if (ny >= 0 && ny < H && nx >= 0 && nx < W)
+            {
+                int neighbor_idx = ny * W + nx;
+                output += input[curr_t_offset + neighbor_idx];
+                cnt += 1.0f;
             }
         }
     }
-    else
-    {
-        for (int dy = -ks; dy <= ks; ++dy)
-        {
-            for (int dx = -ks; dx <= ks; ++dx)
-            {
-                int ny = y + dy;
-                int nx = x + dx;
-
-                if (ny >= 0 && ny < H && nx >= 0 && nx < W)
-                {
-                    int neighbor_idx = ny * W + nx;
-                    output += input[curr_t_offset + neighbor_idx];
-                    cnt += 1.0f;
-                }
-            }
-        }
-    }
-
+    
+    // TODO : saturating ? don't think it's necessary
     output = fclampf(output, 0.0f, 1.0f);
     return (cnt > 0.0f) ? output / cnt : 0.0f;
 }
@@ -106,6 +87,10 @@ __device__ float apply_blur(BLUR_MODE mode,
         return apply_blur_avg(kernel_size, W, H, input, center_idx, curr_t_offset);
     }
     // TODO
+    else if (mode == BLUR_MODE::BLUR_NONE)
+    {
+        return input[curr_t_offset + center_idx];
+    }
 
     return apply_blur_avg(kernel_size, W, H, input, center_idx, curr_t_offset);
 }
@@ -134,15 +119,15 @@ __forceinline__ __device__ float apply_high_pass_filter(float incoming_value,
                                         int prev,
                                         float *HPF,
                                         float *HPF_mem,
-                                        int HPF_mode,
+                                        HPF_MODE HPF_mode,
                                         float HPF_param)
 {
-    if (HPF_mode == 1)
+    if (HPF_mode == HPF_MODE::MODE1)
     {
         HPF_mem[curr] = HPF_mem[prev] + HPF_param * (incoming_value - HPF_mem[prev]);
         return incoming_value - HPF_mem[curr];
     }
-    else if (HPF_mode == 2)
+    else if (HPF_mode == HPF_MODE::MODE2)
     {
         return incoming_value - previous_value + (1 - HPF_param) * HPF[prev];
     }
@@ -214,7 +199,7 @@ __global__ void k_stageA(const float *__restrict__ imgs,
                          int lin_t_offset, int prev_offset, int curr_offset,
                          int H, int W,
                          float alpha1, float alpha2,
-                         int HPF1_mode,
+                         HPF_MODE HPF1_mode,
                          float HPF1_param)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -258,7 +243,9 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
                          int H, int W,
                          float lambda_OPL,
                          float G_A_zero, float lambda_A,
-                         float V_BIP_LPF_alpha)
+                         float V_BIP_LPF_alpha,
+                         BLUR_MODE blur1_mode,
+                         bool turn_off_feedback)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int HW = H * W;
@@ -269,10 +256,17 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
     int curr = curr_offset + idx;
 
     /* -------- spatial blur of LPF2 ------- */
-    BLURRED2[curr] = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H,
+    BLURRED2[curr] = apply_blur(blur1_mode, 3, W, H,
                                 LPF2, idx, curr - idx); // curr‑t slice base
 
     I_OPL[curr] = lambda_OPL * (BLURRED2[curr] - LPF2[curr]);
+
+    if (turn_off_feedback)
+    {
+        Q[curr] = 0.0f;
+        V_BIP_LPF[curr] = 0.0f;
+        return;
+    }
 
     Q[curr] = G_A_zero + lambda_A * fabsf(V_BIP[prev]);
     Q[curr] = fmaxf(0.0f, fminf(Q[curr], 1.0f));
@@ -308,8 +302,10 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
                          float U_rest_on, float U_rest_off,
                          float U_th_on, float U_th_off,
                          float U_reset_on, float U_reset_off,
-                         int HPF2_mode,
-                        float HPF2_param)
+                         HPF_MODE HPF2_mode,
+                         float HPF2_param,
+                         BLUR_MODE blur2_mode,
+                         bool turn_off_feedback)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int HW = H * W;
@@ -320,16 +316,26 @@ __global__ void k_stageC(const float *__restrict__ V_BIP_LPF,
     int curr = curr_offset + idx;
     int lin_idx = lin_t_offset + idx;
 
-    /* ------ spatial blur of V_BIP_LPF (g_A) ------ */
-    float g_A = apply_blur(BLUR_MODE::BLUR_AVG, 3, W, H,
-                           V_BIP_LPF, idx, curr - idx);
 
-    V_BIP[curr] = euler_method(V_BIP[prev], p1,
-                               I_OPL[curr], g_A);
+    if (!turn_off_feedback)
+    {
+        /* ------ spatial blur of V_BIP_LPF (g_A) ------ */
+        float g_A = apply_blur(blur2_mode, 3, W, H,
+                            V_BIP_LPF, idx, curr - idx);
 
-    HPF2[curr] = apply_high_pass_filter(V_BIP[curr], V_BIP[prev],
-                                        curr, prev, HPF2, HPF2_mem,
-                                        HPF2_mode, HPF2_param);
+        V_BIP[curr] = euler_method(V_BIP[prev], p1,
+                                I_OPL[curr], g_A);
+
+        HPF2[curr] = apply_high_pass_filter(V_BIP[curr], V_BIP[prev],
+                                            curr, prev, HPF2, HPF2_mem,
+                                            HPF2_mode, HPF2_param);
+    }
+    else 
+    {
+        V_BIP[curr] = I_OPL[curr];
+        HPF2[curr] = I_OPL[curr];
+    }
+
 
     I_Gang_on[curr] = fmaxf(HPF2[curr], 0.0f) + I_bias_on;
     I_Gang_off[curr] = fmaxf(-HPF2[curr], 0.0f) + I_bias_off;
@@ -369,31 +375,11 @@ void run_silicon_retina_model(
     unsigned char *d_fired_on,
     unsigned char *d_fired_off,
 
-    int T, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias_on,
-    float I_bias_off,
-    float p2,
-    float p3,
-    float U_rest_on,
-    float U_rest_off,
-    float U_th_on,
-    float U_th_off,
-    float U_reset_on,
-    float U_reset_off,
-    int HPF1_mode = 0,
-    float HPF1_param = 0.5f,
-    int HPF2_mode = 0,
-    float HPF2_param = 0.5f
+    int T,
+    SiliconRetinaParams& retina_config
 )
 {
-    const int HW = H * W;
+    const int HW = retina_config.H * retina_config.W;
     int device;
     CUDA_CHECK(cudaGetDevice(&device));
     cudaDeviceProp prop;
@@ -421,16 +407,23 @@ void run_silicon_retina_model(
         k_stageA<<<grid, block>>>(d_imgs,
                                   d_LPF1, d_HPF1_mem, d_HPF1, d_LPF2,
                                   lin_t_offset, prev_offset, curr_offset,
-                                  H, W, alpha1, alpha2,
-                                  HPF1_mode,
-                                 HPF1_param);
+                                  retina_config.H, retina_config.W, 
+                                  retina_config.alpha1, retina_config.alpha2,
+                                  retina_config.HPF1_mode,
+                                  retina_config.HPF1_param);
 
         /* ---------- kernel B ---------- */
         k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
                                   d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
-                                  lin_t_offset, prev_offset, curr_offset, H, W,
-                                  lambda_OPL, G_A_zero, lambda_A,
-                                  V_BIP_LPF_alpha);
+                                  lin_t_offset, prev_offset, curr_offset, 
+                                  retina_config.H, 
+                                  retina_config.W,
+                                  retina_config.lambda_OPL, 
+                                  retina_config.G_A_zero, 
+                                  retina_config.lambda_A,
+                                  retina_config.V_BIP_LPF_alpha,
+                                  retina_config.blur1_mode,
+                                  retina_config.turn_off_feedback);
 
         /* ---------- kernel C ---------- */
         k_stageC<<<grid, block>>>(d_V_BIP_LPF,
@@ -447,16 +440,18 @@ void run_silicon_retina_model(
                                   lin_t_offset,
                                   prev_offset,
                                   curr_offset,
-                                  H, W,
-                                  p1,
-                                  I_bias_on,
-                                  I_bias_off,
-                                  p2, p3,
-                                  U_rest_on, U_rest_off,
-                                  U_th_on, U_th_off,
-                                  U_reset_on, U_reset_off,
-                                  HPF2_mode,
-                                  HPF2_param);
+                                  retina_config.H, retina_config.W,
+                                  retina_config.p1,
+                                  retina_config.I_bias_on,
+                                  retina_config.I_bias_off,
+                                  retina_config.p2, retina_config.p3,
+                                  retina_config.U_rest_on, retina_config.U_rest_off,
+                                  retina_config.U_th_on, retina_config.U_th_off,
+                                  retina_config.U_reset_on, retina_config.U_reset_off,
+                                  retina_config.HPF2_mode,
+                                  retina_config.HPF2_param,
+                                  retina_config.blur2_mode,
+                                  retina_config.turn_off_feedback);
     }
 
     CUDA_CHECK(cudaGetLastError());
@@ -486,30 +481,8 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
-    int T, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias_on,
-    float I_bias_off,
-    float p2,
-    float p3,
-    float U_rest_on,
-    float U_rest_off,
-
-    float U_th_on,
-    float U_th_off,
-
-    float U_reset_on,
-    float U_reset_off,    
-    int HPF1_mode = 0,
-    float HPF1_param = 0.5f,
-    int HPF2_mode = 0,
-    float HPF2_param = 0.5f)
+    int T, 
+    SiliconRetinaParams& retina_config)
 {
     CHECK_INPUT(d_images);
     CHECK_INPUT(d_LPF1);
@@ -570,30 +543,8 @@ std::vector<torch::Tensor> forward_silicon_retina_verbose(
                              d_V_LIF_off.data<float>(),
                              d_fired_on.data<unsigned char>(),
                              d_fired_off.data<unsigned char>(),
-
-                             T, H, W,
-                             alpha1, alpha2,
-                             V_BIP_LPF_alpha,
-                             lambda_OPL,
-                             G_A_zero,
-                             lambda_A,
-                             p1,
-                             I_bias_on,
-                             I_bias_off,
-                             p2, p3,
-
-                             U_rest_on,
-                             U_rest_off,
-
-                             U_th_on,
-                             U_th_off,
-
-                             U_reset_on,
-                             U_reset_off,
-                             HPF1_mode,
-                             HPF1_param,
-                             HPF2_mode,
-                             HPF2_param );
+                             T,
+                             retina_config );
     return {d_fired_on, d_fired_off};
 }
 
@@ -617,30 +568,10 @@ void run_silicon_retina_model_fired_only(
     unsigned char *d_fired_on,
     unsigned char *d_fired_off,
 
-    int T, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias_on,
-    float I_bias_off,
-    float p2,
-    float p3,
-    float U_rest_on,
-    float U_rest_off,
-    float U_th_on,
-    float U_th_off,
-    float U_reset_on,
-    float U_reset_off,
-    int HPF1_mode = 0,
-    float HPF1_param = 0.5f,
-    int HPF2_mode = 0,
-    float HPF2_param = 0.5f)
+    int T, 
+    SiliconRetinaParams& retina_config)
 {
-    const int HW = H * W;
+    const int HW = retina_config.H * retina_config.W;
     int device;
     CUDA_CHECK(cudaGetDevice(&device));
     cudaDeviceProp prop;
@@ -671,16 +602,20 @@ void run_silicon_retina_model_fired_only(
         k_stageA<<<grid, block>>>(d_imgs,
                                   d_LPF1,d_HPF1_mem, d_HPF1, d_LPF2,
                                   lin_t_offset, prev_offset, curr_offset,
-                                  H, W, alpha1, alpha2,
-                                  HPF1_mode,
-                                  HPF1_param);
+                                  retina_config.H, retina_config.W, 
+                                  retina_config.alpha1, retina_config.alpha2,
+                                  retina_config.HPF1_mode,
+                                  retina_config.HPF1_param);
 
         /* ---------- kernel B ---------- */
         k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
                                   d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
-                                  lin_t_offset, prev_offset, curr_offset, H, W,
-                                  lambda_OPL, G_A_zero, lambda_A,
-                                  V_BIP_LPF_alpha);
+                                  lin_t_offset, prev_offset, curr_offset, 
+                                  retina_config.H, retina_config.W,
+                                  retina_config.lambda_OPL, retina_config.G_A_zero, 
+                                  retina_config.lambda_A, retina_config.V_BIP_LPF_alpha,
+                                  retina_config.blur1_mode,
+                                  retina_config.turn_off_feedback);
 
         /* ---------- kernel C ---------- */
         k_stageC<<<grid, block>>>(d_V_BIP_LPF,
@@ -697,16 +632,18 @@ void run_silicon_retina_model_fired_only(
                                   lin_t_offset,
                                   prev_offset,
                                   curr_offset,
-                                  H, W,
-                                  p1,
-                                  I_bias_on,
-                                  I_bias_off,
-                                  p2, p3,
-                                  U_rest_on, U_rest_off,
-                                  U_th_on, U_th_off,
-                                  U_reset_on, U_reset_off,
-                                  HPF2_mode,
-                                  HPF2_param);
+                                  retina_config.H, retina_config.W,
+                                  retina_config.p1,
+                                  retina_config.I_bias_on,
+                                  retina_config.I_bias_off,
+                                  retina_config.p2, retina_config.p3,
+                                  retina_config.U_rest_on, retina_config.U_rest_off,
+                                  retina_config.U_th_on, retina_config.U_th_off,
+                                  retina_config.U_reset_on, retina_config.U_reset_off,
+                                  retina_config.HPF2_mode,
+                                  retina_config.HPF2_param,
+                                  retina_config.blur2_mode,
+                                  retina_config.turn_off_feedback);
     }
 
     CUDA_CHECK(cudaGetLastError());
@@ -736,30 +673,8 @@ std::vector<torch::Tensor> forward_silicon_retina(
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
-    int T, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias_on,
-    float I_bias_off,
-    float p2,
-    float p3,
-    float U_rest_on,
-    float U_rest_off,
-
-    float U_th_on,
-    float U_th_off,
-
-    float U_reset_on,
-    float U_reset_off,
-    int HPF1_mode = 0,
-    float HPF1_param = 0.5f,
-    int HPF2_mode = 0,
-    float HPF2_param = 0.5f)
+    int T, 
+    SiliconRetinaParams& retina_config)
 {
     CHECK_INPUT(d_images);
     CHECK_INPUT(d_LPF1);
@@ -822,29 +737,7 @@ std::vector<torch::Tensor> forward_silicon_retina(
                                         d_fired_on.data<unsigned char>(),
                                         d_fired_off.data<unsigned char>(),
 
-                                        T, H, W,
-                                        alpha1, alpha2,
-                                        V_BIP_LPF_alpha,
-                                        lambda_OPL,
-                                        G_A_zero,
-                                        lambda_A,
-                                        p1,
-                                        I_bias_on,
-                                        I_bias_off,
-                                        p2, p3,
-
-                                        U_rest_on,
-                                        U_rest_off,
-
-                                        U_th_on,
-                                        U_th_off,
-
-                                        U_reset_on,
-                                        U_reset_off,
-                                        HPF1_mode,
-                                        HPF1_param,
-                                        HPF2_mode,
-                                        HPF2_param);
+                                        T, retina_config);
 
     return {d_fired_on, d_fired_off};
 }
@@ -869,30 +762,10 @@ void run_silicon_retina_model_online(
     unsigned char *d_fired_on,
     unsigned char *d_fired_off,
 
-    int curr_t, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias_on,
-    float I_bias_off,
-    float p2,
-    float p3,
-    float U_rest_on,
-    float U_rest_off,
-    float U_th_on,
-    float U_th_off,
-    float U_reset_on,
-    float U_reset_off,
-    int HPF1_mode = 0,
-    float HPF1_param = 0.5f,
-    int HPF2_mode = 0,
-    float HPF2_param = 0.5f)
+    int curr_t, 
+    SiliconRetinaParams& retina_config)
 {
-    const int HW = H * W;
+    const int HW = retina_config.H * retina_config.W;
     int device;
     CUDA_CHECK(cudaGetDevice(&device));
     cudaDeviceProp prop;
@@ -922,14 +795,19 @@ void run_silicon_retina_model_online(
                               d_HPF1_mem,
                               d_HPF1, d_LPF2,
                               lin_t_offset, prev_offset, curr_offset,
-                              H, W, alpha1, alpha2, HPF1_mode,HPF1_param);
+                              retina_config.H, retina_config.W, 
+                              retina_config.alpha1, retina_config.alpha2, 
+                              retina_config.HPF1_mode, retina_config.HPF1_param);
 
     /* ---------- kernel B ---------- */
     k_stageB<<<grid, block>>>(d_LPF2, d_BLURRED2, d_I_OPL,
                               d_Q_V_BIP, d_V_BIP_LPF, d_V_BIP,
-                              lin_t_offset, prev_offset, curr_offset, H, W,
-                              lambda_OPL, G_A_zero, lambda_A,
-                              V_BIP_LPF_alpha);
+                              lin_t_offset, prev_offset, curr_offset, retina_config.H, retina_config.W,
+                              retina_config.lambda_OPL, retina_config.G_A_zero, 
+                              retina_config.lambda_A,
+                              retina_config.V_BIP_LPF_alpha,
+                              retina_config.blur1_mode,
+                              retina_config.turn_off_feedback);
 
     /* ---------- kernel C ---------- */
     k_stageC<<<grid, block>>>(d_V_BIP_LPF,
@@ -946,15 +824,17 @@ void run_silicon_retina_model_online(
                               lin_t_offset,
                               prev_offset,
                               curr_offset,
-                              H, W,
-                              p1,
-                              I_bias_on,
-                              I_bias_off,
-                              p2, p3,
-                              U_rest_on, U_rest_off,
-                              U_th_on, U_th_off,
-                              U_reset_on, U_reset_off,
-                              HPF2_mode, HPF2_param);
+                              retina_config.H, retina_config.W,
+                              retina_config.p1,
+                              retina_config.I_bias_on,
+                              retina_config.I_bias_off,
+                              retina_config.p2, retina_config.p3,
+                              retina_config.U_rest_on, retina_config.U_rest_off,
+                              retina_config.U_th_on, retina_config.U_th_off,
+                              retina_config.U_reset_on, retina_config.U_reset_off,
+                              retina_config.HPF2_mode, retina_config.HPF2_param,
+                              retina_config.blur2_mode,
+                              retina_config.turn_off_feedback);
 
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -983,30 +863,8 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
     torch::Tensor &d_fired_on,
     torch::Tensor &d_fired_off,
 
-    int curr_t, int H, int W,
-    float alpha1,
-    float alpha2,
-    float V_BIP_LPF_alpha,
-    float lambda_OPL,
-    float G_A_zero,
-    float lambda_A,
-    float p1,
-    float I_bias_on,
-    float I_bias_off,
-    float p2,
-    float p3,
-    float U_rest_on,
-    float U_rest_off,
-
-    float U_th_on,
-    float U_th_off,
-
-    float U_reset_on,
-    float U_reset_off,
-    int HPF1_mode = 0,
-    float HPF1_param = 0.5f,
-    int HPF2_mode = 0,
-    float HPF2_param = 0.5f)
+    int curr_t, 
+    SiliconRetinaParams& retina_config)
 {
     CHECK_INPUT(d_images);
     CHECK_INPUT(d_LPF1);
@@ -1064,36 +922,7 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
                                     d_fired_on.data<unsigned char>(),
                                     d_fired_off.data<unsigned char>(),
 
-                                    curr_t, H, W,
-                                    alpha1, alpha2,
-                                    V_BIP_LPF_alpha,
-                                    lambda_OPL,
-                                    G_A_zero,
-                                    lambda_A,
-                                    p1,
-                                    I_bias_on,
-                                    I_bias_off,
-                                    p2, p3,
-
-                                    U_rest_on,
-                                    U_rest_off,
-
-                                    U_th_on,
-                                    U_th_off,
-
-                                    U_reset_on,
-                                    U_reset_off,
-                                    HPF1_mode,
-                                    HPF1_param,
-                                    HPF2_mode,
-                                    HPF2_param);
+                                    curr_t, retina_config);
 
      return {d_fired_on, d_fired_off};
-}
-
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
-{
-    m.def("forward_silicon_retina_verbose", &forward_silicon_retina_verbose, "run silicon retina model and save the outputs for every layer (most useful for debugging!)");
-    m.def("forward_silicon_retina", &forward_silicon_retina, "run silicon retina model and save only the fired events");
-    m.def("forward_silicon_retina_online", &forward_silicon_retina_online, "run silicon retina model online and save only the fired events, however this is done frame by frame (useful for streaming data)");
 }
