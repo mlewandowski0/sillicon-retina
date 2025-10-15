@@ -23,7 +23,11 @@ def _load_images_from_folder(folder, global_fps):
 
     return {"images": images, "fps": fps}
 
-
+def load_frames_from_video(video_path):
+    frames = []
+    for frame in iio.imiter(video_path):
+        frames.append(frame)
+    return frames
 
 class VideoDatasetFromPictures(Dataset):
 
@@ -54,6 +58,45 @@ class VideoDatasetFromPictures(Dataset):
         x = self.files[idx]
 
         return _load_images_from_folder(os.path.join(x, self.suffix), self.fps)
+
+class VideoDatasetFromVideoPairGlobal(Dataset):
+
+    def __init__(self, dirpath, global_fps, input_video="input.AVI", output_video="maps.mp4", suffix = None):
+
+        # we assume that the dataset follows structure like
+        # - dataset
+        #   - train
+        #       - folder 1
+        #       - folder 2
+        #   - val
+        #       - folder 1
+        #       - folder 2
+
+        self.root = dirpath
+        self.files = sorted([os.path.join(self.root, x) for x in os.listdir(self.root)])
+        self.fps = global_fps
+
+        if suffix is None:
+            self.suffix = ""
+        else:
+            self.suffix = suffix
+
+        self.input_video = input_video
+        self.output_video = output_video
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        path = self.files[idx]
+
+        x = os.path.join(path, self.input_video)
+        y = os.path.join(path, self.output_video)
+        
+        x = load_frames_from_video(x)
+        y = load_frames_from_video(y)
+
+        return {"images" : x, "maps": y, "fps": self.fps}
 
 
 if __name__ == "__main__":

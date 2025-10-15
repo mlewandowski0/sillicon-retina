@@ -22,7 +22,7 @@ def write_sequence_and_original_to_video(upsampled, timestamps, original, origin
 
             upsampled_new = np.clip(255 *  upsampled[i], 0, 255).astype(np.uint8)
             new_data = np.concatenate([upsampled_new, np.repeat(original[j][..., None], 3, axis=2)  ], axis=1)
-            # is of shape
+            # is of shapes
             writer.append_data(new_data)
 
 
