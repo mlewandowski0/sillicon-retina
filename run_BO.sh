@@ -1,0 +1,1 @@
+python -m src.neural_network.experiment.retina_parameter_search_using_BO --enable-wandb --trials 150 --seed 41 --epochs 50 --final-epochs 100 --train-limit 200 --val-limit 50 --max-grid-occupancy 0.75

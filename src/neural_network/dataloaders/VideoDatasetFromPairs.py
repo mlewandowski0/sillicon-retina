@@ -5,13 +5,16 @@ from torch.utils.data import Dataset
 import imageio.v3 as iio
 import numpy as np
 import os
+import cv2
 
-
-def load_frames_from_video(video_path):
+def load_frames_from_video(video_path, scale=0.5):
     frames = []
     for frame in iio.imiter(video_path):
+        if scale != 1.0:
+            frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         frames.append(frame)
     return frames
+
 
 class VideoDatasetFromVideoPairGlobal(Dataset):
 

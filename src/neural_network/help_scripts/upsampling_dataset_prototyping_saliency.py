@@ -1,4 +1,29 @@
-import os
+import os, sys, site, glob
+
+# Build LD_LIBRARY_PATH to point at pip CUDA libs inside this venv
+libroots = []
+for pkg, sub in [
+    ("nvidia/cuda_runtime", "lib"),
+    ("nvidia/cublas",       "lib"),
+    ("nvidia/cudnn",        "lib"),
+    ("nvidia/cufft",        "lib"),
+]:
+    for sp in site.getsitepackages():
+        path = os.path.join(sp, pkg, sub)
+        if os.path.isdir(path):
+            libroots.append(path)
+
+# Prepend (don’t overwrite) so TF finds the right .so’s
+os.environ["LD_LIBRARY_PATH"] = ":".join(libroots + [os.environ.get("LD_LIBRARY_PATH","")])
+
+# Usual quality-of-life flags
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
+
+import tensorflow as tf  # <-- import FIRST
+print("TF build:", tf.__version__, tf.sysconfig.get_build_info())
+print("TF GPUs:", tf.config.list_physical_devices('GPU'))
+
 from src.neural_network.dataloaders.VideoDatasetUpsampling import VideoDatasetUpsampling, \
     VideoDatasetUpsamplingCacheToFolder
 from src.neural_network.dataloaders.VideoDataset import VideoDatasetFromPictures
@@ -38,7 +63,7 @@ def upsample():
     upsampling_ds_val = VideoDatasetUpsampling(video_val,
                                            model_path=os.path.join("models", "film_net", "Style", "saved_model"),
                                            upsample_to_events=False,
-                                           new_framerate=200,
+                                           new_framerate=100,
                                            debug = False)
 
 

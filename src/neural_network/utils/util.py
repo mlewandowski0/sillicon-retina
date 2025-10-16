@@ -26,6 +26,8 @@ def make_config_dictionary(num_epochs : int,
                            silicon_retina_config : SiliconRetinaConfig,
                            event_representation_params : Dict,
                            result_file : str,
+                           wandb_project_name : str = "e2vid-ecoco",
+                           wandb_prefix : str = "FIREnetwork",
                            prefix : str = "test",
                            check_dataset : bool = True,
                            min_per_pixel_occupancy : float = 0.0,
@@ -116,6 +118,9 @@ def make_config_dictionary(num_epochs : int,
         "max_per_pixel_occupancy" : max_per_pixel_occupancy,
         "val_on_train" : val_on_train,
         
+        "wandb_project_name" : wandb_project_name,
+        "wandb_prefix" : wandb_prefix,
+        
         "silicon_retina_config" : silicon_retina_config.to_dict(),
         "event_representation_class" : event_type.value,
         "event_representation_params" : event_representation_params
@@ -124,18 +129,23 @@ def make_config_dictionary(num_epochs : int,
     config = basic_config | neural_network_params
     return config
 
-def statistic_from_grids(grids):
-    pixels = grids.numel()
-    non_zeros = (grids != 0).sum().item()
-    grids_occupancy = non_zeros / pixels
+def statistic_from_grids(grids, eps=1e-6):
+    # grids: [T, B, H, W]
+    A = grids.abs()
 
-    A  = grids.clone()
-    A = torch.sum(torch.abs(A), dim=(0,1))
-    WH = A.numel()
-    per_pixel_non_zero = (A != 0).sum().item()
+    # grid occupancy: fraction of non-zero voxels
+    vox_nonzero = (A > eps).sum().item()
+    vox_total   = A.numel()
+    grids_occupancy = vox_nonzero / vox_total
+
+    # per-pixel occupancy across time/bins: fraction of pixels that ever fired
+    # collapse over T and B → [H,W]
+    per_pix_sum = A.sum(dim=(0,1))
+    per_pixel_non_zero = (per_pix_sum > eps).sum().item()
+    WH = per_pix_sum.numel()
     per_pixel_occupancy = per_pixel_non_zero / WH
-    
-    return grids_occupancy, per_pixel_occupancy 
+
+    return grids_occupancy, per_pixel_occupancy
 
 def write_optuna_result(json_path, best_value, pixel_occupancy, grid_occupancy):
     with open(json_path, "w") as f:

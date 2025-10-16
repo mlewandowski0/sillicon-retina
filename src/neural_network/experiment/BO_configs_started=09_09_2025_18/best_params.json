@@ -1,0 +1,17 @@
+{
+  "alpha1": 0.5,
+  "V_BIP_LPF_alpha": 0.5,
+  "lambda_OPL": 3.0,
+  "G_A_zero": 0.5,
+  "lambda_A": 0.5,
+  "p1": 0.25,
+  "I_bias_on": 0.01,
+  "p2": 1.0,
+  "p3": 0.2,
+  "U_rest_on": -0.02,
+  "U_th_on": 0.05,
+  "U_reset_on": 0.0,
+  "HPF2_param": 0.5,
+  "HPF1_mode": 0,
+  "HPF2_mode": 0
+}

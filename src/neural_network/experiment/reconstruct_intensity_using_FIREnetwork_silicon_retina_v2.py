@@ -272,15 +272,6 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device: ", device)
 
-    use_wandb = config.get("use_wandb", False)
-    config["use_wandb"] = use_wandb
-    if config.get('use_wandb', False):
-        wandb.init(
-            project="e2vid-ecoco",
-            config=config,
-            name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
-
     INP = config.get("num_bins", 5)
     # get result file
     result_file = config.get("result_file", "result.json")
@@ -466,6 +457,22 @@ if __name__ == "__main__":
     )
 
     best_val_loss = float('inf')
+    
+    use_wandb = config.get("use_wandb", False)
+    config["use_wandb"] = use_wandb
+    
+    wandb_project_name = config.get("wandb_project_name", "e2vid-ecoco")
+    config["wandb_project_name"] = wandb_project_name
+    
+    wandb_prefix = config.get("wandb_prefix", "FIREnetwork")
+    config["wandb_prefix"] = wandb_prefix
+    
+    if config.get('use_wandb', False):
+        wandb.init(
+            project=wandb_project_name,
+            config=config,
+            name=f"{wandb_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
 
     for epoch in range(config['num_epochs']):
         print(f"\n{'=' * 50}")

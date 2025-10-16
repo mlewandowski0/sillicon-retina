@@ -1,4 +1,29 @@
-import tensorflow as tf
+import os, sys, site, glob
+
+# Build LD_LIBRARY_PATH to point at pip CUDA libs inside this venv
+libroots = []
+for pkg, sub in [
+    ("nvidia/cuda_runtime", "lib"),
+    ("nvidia/cublas",       "lib"),
+    ("nvidia/cudnn",        "lib"),
+    ("nvidia/cufft",        "lib"),
+]:
+    for sp in site.getsitepackages():
+        path = os.path.join(sp, pkg, sub)
+        if os.path.isdir(path):
+            libroots.append(path)
+
+# Prepend (don’t overwrite) so TF finds the right .so’s
+os.environ["LD_LIBRARY_PATH"] = ":".join(libroots + [os.environ.get("LD_LIBRARY_PATH","")])
+
+# Usual quality-of-life flags
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
+os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
+
+import tensorflow as tf  # <-- import FIRST
+print("TF build:", tf.__version__, tf.sysconfig.get_build_info())
+print("TF GPUs:", tf.config.list_physical_devices('GPU'))
+
 import json
 from typing import Optional
 
@@ -6,7 +31,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import os
 from torch.utils.data import Dataset
 from .VideoDataset import VideoDatasetFromPictures
 from .interpolator import Interpolator
@@ -34,7 +58,40 @@ def write_sequence_and_original_to_video(upsampled, timestamps, original, origin
             # is of shape
             writer.append_data(new_data)
 
+def to_nhwc3_batched(img):
+    """
+        img : np.ndarray, shape (H, W) or (H, W, 1) or (H, W, 3) or already batched (1, H, W, C)
+        returns : float32 in [0, 1] shape (1, H, W, 3)
+    """
+    
+    x = img 
+    
+    # remove batch if already present with size 1 ( safe-guard )
+    if x.ndim == 4 and x.shape[0] == 1:
+        x = x[0]
+        
+    # ensure last 3 channels
+    
+    # (H, W)
+    if x.ndim == 2:
+        x = np.repeat(x[..., None], 3, axis=-1)
+        
+    elif x.ndim == 3 and x.shape[-1] == 1: # (H, W, 1)
+        x = np.repeat(x, 3, axis=-1)
+        
+    elif x.ndim == 3 and x.shape[-1] == 3: # (H, W, 3)
+        pass
 
+    else:
+        raise ValueError(f"Unexpected frame shape {x.shape}; expected (H,W),(H,W,1),(H,W,3).")
+    
+    x = x.astype(np.float32) 
+    if x.max() > 1.0:
+        x = x / 255.0
+        
+    x = x[None, ...]
+    return x
+    
 class VideoDatasetUpsampling(Dataset):
 
     def __init__(self,
@@ -104,11 +161,11 @@ class VideoDatasetUpsampling(Dataset):
 
         dt = 1. / fps
         for i in pbar:
-            current_image, next_image = images[i][None], images[i + 1][None]
+            current_image, next_image = images[i], images[i + 1]
             t0, t1  = i * dt, (i + 1) * dt
 
-            current_image = np.repeat(current_image[..., None], 3, axis=-1) / 255.
-            next_image = np.repeat(next_image[..., None], 3, axis=-1) / 255.
+            current_image = to_nhwc3_batched(images[i])            # (1,H,W,3)
+            next_image    = to_nhwc3_batched(images[i + 1])        # (1,H,W,3)
 
             total_frames, optical_flow, total_timestamps = self._upsample_adaptive(current_image,
                                                                                  next_image,
@@ -163,17 +220,14 @@ class VideoDatasetUpsampling(Dataset):
             original_frame_time = i * img_dt
             next_original_frame_time = (i + 1) * img_dt
 
-            dt_rel = (time - original_frame_time) / (next_original_frame_time - original_frame_time)
-            dt_rel = np.array([dt_rel], dtype=np.float32)
+            dt_val = (time - original_frame_time) / (next_original_frame_time - original_frame_time)
+            dt_rel = np.array([dt_val], dtype=np.float32)
 
             prev += 1
 
-            I0 = images[i]
-            I1 = images[i + 1] if i + 1 < T else images[i]
-
             # preprocess the images to fit the shape
-            I0 = np.repeat(I0[None, :, :, None] / 255.0, axis=-1, repeats=3)
-            I1 = np.repeat(I1[None, :, :, None] / 255.0, axis=-1, repeats=3)
+            I0 = to_nhwc3_batched(images[i])                  # (1,H,W,3) float32
+            I1 = to_nhwc3_batched(images[i + 1] if i + 1 < T else images[i])
 
             if time == original_frame_time:
                 all_images.append(I0)

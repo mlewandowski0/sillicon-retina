@@ -21,6 +21,13 @@ from src.neural_network.dataloaders.Encodings import EventRepresentation
 from src.neural_network.utils.util import make_config_dictionary
 
 
+def occupancy_penalty(g, p, lo_g, hi_g, lo_p, hi_p, base=1e3, w=1e4):
+    def hinge(v, lo, hi):
+        if v < lo: return lo - v
+        if v > hi: return v - hi
+        return 0.0
+    return float(base + w*hinge(g, lo_g, hi_g)**2 + w*hinge(p, lo_p, hi_p)**2)
+
 def suggest_silicon_retina_params(trial: optuna.trial.Trial) -> Dict[str, Any]:
     p = {}
     p["alpha1"] = trial.suggest_float("alpha1", 0.1, 0.9)
@@ -39,12 +46,9 @@ def suggest_silicon_retina_params(trial: optuna.trial.Trial) -> Dict[str, Any]:
     p["U_th_on"]    = trial.suggest_float("U_th_on",    0.01, 0.2)
     p["U_reset_on"]  = trial.suggest_float("U_reset_on",  0, 0.2)
     p["HPF2_param"] = trial.suggest_float("HPF2_param", 0.0, 1.0)
-    
-    p["HPF1_mode"] = 1
-    p["HPF2_mode"] = 1
-    
-    #p["HPF1_mode"]  = trial.suggest_categorical("HPF1_mode", [0, 1])
-    #p["HPF2_mode"]  = trial.suggest_categorical("HPF2_mode", [0, 1])
+
+    p["HPF1_mode"]  = trial.suggest_categorical("HPF1_mode", [0, 1])
+    p["HPF2_mode"]  = trial.suggest_categorical("HPF2_mode", [0, 1])
   
     p["I_bias_off"] = p["I_bias_on"]
     p["U_rest_off"] = p["U_rest_on"]
@@ -61,9 +65,6 @@ def run_training(module: str, config_path: Path, result_path: Path,
     env = os.environ.copy()
     if cuda is not None:
         env["CUDA_VISIBLE_DEVICES"] = str(cuda)
-    # Keep wandb quiet unless your config says otherwise
-    env.setdefault("WANDB_SILENT", "true")
-    env.setdefault("WANDB_MODE", "offline")
 
     cmd = [sys.executable, "-m", module, "-c", str(config_path)]
     return subprocess.run(
@@ -110,7 +111,7 @@ def objective_factory(args, study_root: Path):
             burn_in_steps=args.burn_in_steps,
             sequence_length=args.sequence_length,
             force_recomputing=True,                # ensure fresh events per trial
-            use_wandb=False if args.disable_wandb else False,  # keep quiet by default here
+            use_wandb=args.enable_wandb,  # keep quiet by default here
             log_input=args.log_input,
             event_type=event_representation,
             event_representation_params=event_representation_params,
@@ -125,6 +126,8 @@ def objective_factory(args, study_root: Path):
             val_on_train=args.val_on_train,
             train_limit=args.train_limit if args.train_limit >= 0 else None,
             val_limit=args.val_limit if args.val_limit >= 0 else None,
+            wandb_project_name = "e2vid-ecoco-retina-BO",
+            wandb_prefix = "BO_FIREnetwork",
         )
 
         # Write the config.json we’ll pass to the runner
@@ -140,7 +143,7 @@ def objective_factory(args, study_root: Path):
         result = read_result_file(result_file)
  
         # Handle crashes/timeouts / missing results
-        if proc.returncode != 0 or result is None:
+        if result is None:
             print("*** Trial failed! *****")
             print(result) 
                    
@@ -159,15 +162,20 @@ def objective_factory(args, study_root: Path):
         trial.set_user_attr("grid_occupancy", grid_occ)
         trial.set_user_attr("used_params", params)
 
-        # Your dataset validator encodes bad datasets with best_value == -1
+        # turn your "invalid" sentinel into a numeric penalty
         if best_value == -1:
-            raise optuna.TrialPruned("Dataset occupancy guardrails failed.")
+            return occupancy_penalty(
+                grid_occ, pixel_occ,
+                args.min_grid_occupancy, args.max_grid_occupancy,
+                args.min_per_pixel_occupancy, args.max_per_pixel_occupancy
+            )
 
+        # if the process crashed *after* writing a valid result, still accept the metric
         if not math.isfinite(best_value):
             raise optuna.TrialPruned("Non-finite loss.")
 
         return best_value
-
+    
     return objective
 
 
@@ -191,7 +199,7 @@ def save_best_artifacts(study: optuna.Study, args, study_root: Path):
         burn_in_steps=args.burn_in_steps,
         sequence_length=args.sequence_length,
         force_recomputing=False,                # reuse any caches you keep
-        use_wandb=not args.disable_wandb,
+        use_wandb=not args.enable_wandb,
         log_input=args.log_input,
         event_type=event_representation,
         event_representation_params=event_representation_params,
@@ -224,7 +232,7 @@ def main():
     ap.add_argument("--n-jobs", type=int, default=1, help="Optuna parallel workers in this process.")
     ap.add_argument("--cuda", default=None, help="CUDA_VISIBLE_DEVICES (e.g., '0').")
     ap.add_argument("--timeout-s", type=int, default=None, help="Per-trial timeout (seconds).")
-    ap.add_argument("--disable-wandb", action="store_true")
+    ap.add_argument("--enable-wandb", action="store_true", help="Opt into wandb logging.")
     ap.add_argument("--prefix", default="retina_BO_FIRENetwork")
 
     # Quick trial budget
@@ -273,6 +281,30 @@ def main():
         storage=args.storage,
         load_if_exists=True,
     )
+    
+    study.enqueue_trial({
+        "alpha1": 0.5, 
+        "alpha2": 0.5, 
+        "V_BIP_LPF_alpha": 0.5, 
+        "lambda_OPL": 3.0,
+        "G_A_zero": 0.5, 
+        "lambda_A": 0.5, 
+        "p1": 0.25, 
+        "p2": 1.0, 
+        "p3": 0.2,
+        "I_bias_on": 0.01,
+        "I_bias_off": 0.01,
+        "U_rest_on": -0.02,
+        "U_rest_off": -0.02,
+        "U_th_on": 0.05, 
+        "U_th_off": 0.05,
+        "U_reset_on": 0.0, "U_reset_off": 0.0,
+        "HPF1_mode": 0, 
+        "HPF2_mode": 0,
+        "HPF1_param": 0.5, 
+        "HPF2_param": 0.5,
+        "apply_log_to_input": False,
+    })
 
     objective = objective_factory(args, study_root)
 
