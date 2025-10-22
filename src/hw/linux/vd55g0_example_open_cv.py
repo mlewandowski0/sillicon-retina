@@ -16,11 +16,17 @@ sensor_dll.Write16(VD55G0_REG_CONTEXTS_OUT_ROI_X_END, 641)
 sensor_dll.Write16(VD55G0_REG_CONTEXTS_OUT_ROI_Y_START, 2)
 sensor_dll.Write16(VD55G0_REG_CONTEXTS_OUT_ROI_Y_END, 601)
 sensor_dll.Write16(VD55G0_REG_STATICS_FORMAT_CTRL, bits_per_pixel)
-sensor_dll.Write8(VD55G0_REG_CONTEXTS_READOUT_CTRL, 0)
+sensor_dll.Write8(VD55G0_REG_CONTEXTS_READOUT_CTRL, 0x1)
+sensor_dll.Write8(VD55G0_REG_STATICS_ORIENTATION, 0x1)
 
 # Start the stream
 sensor_dll.start_stream()
 width = sensor_dll.Read16(VD55G0_REG_STATUS_OUT_ROI_X_SIZE)
+frame_length = sensor_dll.Read16(VD55G0_REG_STATUS_FRAME_LENGTH)
+
+img_x = sensor_dll.Read16(VD55G0_REG_STATUS_X_SIZE)
+img_y = sensor_dll.Read16(VD55G0_REG_STATUS_Y_SIZE)
+print(f"Image size : {img_x}x{img_y}")
 
 # Init window for stream
 smart_imshow = SmartImshow(os.path.basename(__file__))

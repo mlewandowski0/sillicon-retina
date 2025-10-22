@@ -39,8 +39,8 @@ class EventDatasetFromUpsampled(Dataset):
         self.grids_dtype = grids_dtype
         self.verbose = verbose
         
-        self.contrast_threshold_neg = preprocessing_params.get("contrast_threshold_neg", 0.2)
-        self.contrast_threshold_pos = preprocessing_params.get("contrast_threshold_pos", 0.2)
+        self.contrast_threshold_neg = preprocessing_params.get("contrast_threshold_neg", contrast_threshold_neg)
+        self.contrast_threshold_pos = preprocessing_params.get("contrast_threshold_pos", contrast_threshold_pos)
 
         # load glboal metadata once
         with open(os.path.join(directory, "metadata.json"), "r") as f:

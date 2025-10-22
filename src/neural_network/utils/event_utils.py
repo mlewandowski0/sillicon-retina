@@ -28,12 +28,15 @@ def render_events_video(
     datapoint,
     output_path="events_vis.mp4",
     fps=10,
-    alpha=0.65,            # event overlay opacity
-    on_color=(0,0,255),    # ON events (B,G,R)
-    off_color=(255,0,0), # OFF events (B,G,R)
-    quiver_step=16,        # stride for arrows
-    quiver_scale=1.5,       # arrow length scale
-    flows_on=True           # turn off the optical flow
+    alpha=0.65,              # event overlay opacity
+    on_color=(0,0,255),      # ON events (B,G,R)
+    off_color=(255,0,0),     # OFF events (B,G,R)
+    quiver_step=16,          # stride for arrows
+    quiver_scale=1.5,        # arrow length scale
+    flows_on=True,           # turn off the optical flow
+    invert_rgb = False,
+    show_outputs = False,
+    overlay_outputs = False
 ):
     """
     Expects datapoint with:
@@ -46,6 +49,10 @@ def render_events_video(
     # grab tensors
 
     rgbs = to_numpy(datapoint["frames"])
+    
+    if invert_rgb and len(rgbs.shape) == 4:
+        rgbs = rgbs[:,:,:,::-1]             
+            
     events = to_numpy(datapoint["grids"])
 
     if flows_on:
@@ -157,6 +164,7 @@ def render_events_video(
     writer = imageio.get_writer(output_path, format="FFMPEG", fps=fps, codec="libx264", quality=7)
     for t in range(T-1):
         base = to_bgr_u8(rgbs[t+1])
+        
         ev_slice = events[t] if events.ndim == 5 else events[t][:,None,...]  # [C,B,H,W]
         pos, neg = collapse_bins(ev_slice)
         ev_overlay, ev_mask = events_to_overlay(pos, neg)
@@ -168,15 +176,32 @@ def render_events_video(
         if np.sum(ev_mask) != 0:
             merged[ev_mask] = cv2.addWeighted(base[ev_mask], 1.0 - alpha, ev_overlay[ev_mask], alpha, 0)
 
-        if flows_on:
-            flow = flows[t]
-            flow_rgb = flow_to_rgb_hsv(flow)
-            quiv = draw_quiver(base, flow, step=quiver_step, scale=quiver_scale)
-
-        top = np.concatenate([base, merged], axis=1)
+        if show_outputs:
+            out = datapoint["outputs"][t+1]
+            top = np.concatenate([base, merged, to_bgr_u8(out)], axis=1)
+        else:        
+            top = np.concatenate([base, merged], axis=1)
         
-        if flows_on:
-            bottom = np.concatenate([flow_rgb, quiv], axis=1)
+        if flows_on or (show_outputs and overlay_outputs):
+            
+            flow_rgb = np.zeros_like(base)
+            quiv = np.zeros_like(base)
+            base_overlay_out = np.zeros_like(base)
+            
+            if flows_on:
+                flow = flows[t]
+                flow_rgb = flow_to_rgb_hsv(flow)
+                quiv = draw_quiver(base, flow, step=quiver_step, scale=quiver_scale)
+                
+            
+            if show_outputs and not overlay_outputs:
+                base_overlay_out = to_bgr_u8(out)
+            
+            elif show_outputs and overlay_outputs:
+                base_overlay_out = to_bgr_u8(out)
+                base_overlay_out[out != 0] = cv2.addWeighted(base[out != 0], 1.0 - alpha, base_overlay_out[out != 0], alpha, 0)
+                            
+            bottom  = np.concatenate([base_overlay_out, flow_rgb, quiv], axis=1)
             grid = np.concatenate([top, bottom], axis=0)
         else:
             grid = top
@@ -191,7 +216,7 @@ def render_events_video(
 
         writer.append_data(cv2.cvtColor(grid, cv2.COLOR_BGR2RGB))
     writer.close()
-
+    
 def events_to_voxels(x, y, t, p, t0, t1, H= 180, W = 240, B = 5, device="cuda"):
 
         dt = float(t1 - t0)
