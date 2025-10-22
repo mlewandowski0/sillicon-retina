@@ -1,4 +1,17 @@
 import os, sys, site, glob
+import tensorflow as tf
+
+# hard “growth” (env var is fine, but do it in TF too)
+gpus = tf.config.list_physical_devices('GPU')
+for gpu in gpus:
+    try:
+        tf.config.experimental.set_memory_growth(gpu, True)
+    except Exception:
+        pass
+
+# Mixed precision helps both GPU and host RAM with FILM/FLIP
+from tensorflow.keras import mixed_precision
+mixed_precision.set_global_policy("mixed_float16")  # safe for FILM inference
 
 # Build LD_LIBRARY_PATH to point at pip CUDA libs inside this venv
 libroots = []

@@ -1,4 +1,5 @@
 import os, sys, site, glob
+import gc, torch
 
 # Build LD_LIBRARY_PATH to point at pip CUDA libs inside this venv
 libroots = []
@@ -394,6 +395,16 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
                 if not os.path.exists(os.path.join(root_folder, params["optical_flow_path"])):
                     np.savez_compressed(os.path.join(root_folder, params["optical_flow_path"]),
                                     optical_flow=optical_flows)
+                    
+                del raw_images, upsampled_images, images_per_patches, timestamps, optical_flows
+                
+                if i % 5 == 0:
+                    gc.collect()
+                    try:
+                        torch.cuda.empty_cache()
+                    except Exception:
+                        pass
+                    tf.keras.backend.clear_session()
 
 
 
