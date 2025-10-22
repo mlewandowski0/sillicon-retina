@@ -7,7 +7,7 @@ import numpy as np
 import os
 import cv2
 
-def load_frames_from_video(video_path, scale=0.5):
+def load_frames_from_video(video_path, scale=0.4):
     frames = []
     for frame in iio.imiter(video_path):
         if scale != 1.0:
@@ -18,7 +18,7 @@ def load_frames_from_video(video_path, scale=0.5):
 
 class VideoDatasetFromVideoPairGlobal(Dataset):
 
-    def __init__(self, dirpath, global_fps, split=None, input_video="input.AVI", output_video="maps.mp4", suffix = None):
+    def __init__(self, dirpath, global_fps, split=None, input_video="input.AVI", output_video="maps.mp4", suffix = None, start_idx=0):
 
         # we assume that the dataset follows structure like
         # - dataset
