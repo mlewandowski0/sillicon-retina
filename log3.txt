@@ -1,0 +1,32 @@
+nohup: ignoring input
+2025-10-23 16:24:59.440100: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-10-23 16:24:59.447212: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1761233099.455320   15373 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1761233099.458090   15373 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1761233099.464716   15373 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1761233099.464732   15373 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1761233099.464733   15373 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1761233099.464734   15373 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2025-10-23 16:24:59.466693: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+I0000 00:00:1761233101.365697   15373 gpu_device.cc:2019] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 21527 MB memory:  -> device: 0, name: NVIDIA GeForce RTX 4090, pci bus id: 0000:01:00.0, compute capability: 8.9
+TF build: 2.19.1 OrderedDict({'cpu_compiler': '/usr/lib/llvm-18/bin/clang', 'cuda_compute_capabilities': ['sm_60', 'sm_70', 'sm_80', 'sm_89', 'compute_90'], 'cuda_version': '12.5.1', 'cudnn_version': '9', 'is_cuda_build': True, 'is_rocm_build': False, 'is_tensorrt_build': False})
+TF GPUs: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+TF build: 2.19.1 OrderedDict({'cpu_compiler': '/usr/lib/llvm-18/bin/clang', 'cuda_compute_capabilities': ['sm_60', 'sm_70', 'sm_80', 'sm_89', 'compute_90'], 'cuda_version': '12.5.1', 'cudnn_version': '9', 'is_cuda_build': True, 'is_rocm_build': False, 'is_tensorrt_build': False})
+TF GPUs: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+Cacheing, start_index: 0
+
+  0%|          | 0/514 [00:00<?, ?it/s]I0000 00:00:1761233103.397141   15484 cuda_dnn.cc:529] Loaded cuDNN version 90300
+
+  0%|          | 1/514 [00:42<6:06:38, 42.88s/it]
+  0%|          | 2/514 [01:07<4:33:08, 32.01s/it]
+  1%|          | 3/514 [01:29<3:53:32, 27.42s/it]
+  1%|          | 4/514 [02:03<4:14:56, 29.99s/it]
+  1%|          | 5/514 [02:42<4:43:31, 33.42s/it]
+  1%|          | 6/514 [03:53<6:31:35, 46.25s/it]
+  1%|▏         | 7/514 [04:39<6:29:12, 46.06s/it]
+  2%|▏         | 8/514 [05:54<7:46:52, 55.36s/it]
+  2%|▏         | 9/514 [07:01<8:15:42, 58.90s/it]
+  2%|▏         | 10/514 [08:21<9:09:42, 65.44s/it]
+  2%|▏         | 11/514 [10:07<10:53:10, 77.91s/it]

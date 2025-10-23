@@ -86,7 +86,8 @@ def make_OF_train():
                                            debug = False)
 
     VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds,
-                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"))
+                                        output_path=os.path.join("src", "neural_network", "data", "upsampled_train"),
+                                        start_index=46)
 
 
 def cache_upsampling_new_framerate():

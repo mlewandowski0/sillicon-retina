@@ -101,7 +101,8 @@ class VideoDatasetUpsampling(Dataset):
                  upsample_to_events : bool = False,
                  new_framerate : Optional[int] = None,
                  debug : bool = False,
-                 align: Optional[int] = None) -> None:
+                 align: Optional[int] = None,
+                 output_name : Optional[str] = None) -> None:
 
         super(VideoDatasetUpsampling, self).__init__()
         self.videoDataset = videoDataset
@@ -109,6 +110,7 @@ class VideoDatasetUpsampling(Dataset):
         self.upsample_to_events = upsample_to_events
         self.new_framerate = new_framerate
         self.debug = debug
+        self.output_name = output_name
 
         if not self.upsample_to_events and new_framerate is None:
             raise Exception("Upsampling to events was specified to False and new framerate was not provided !")
@@ -131,6 +133,9 @@ class VideoDatasetUpsampling(Dataset):
             flow_mag_1_0_max = ((F_1_0 ** 2).sum(-1) ** .5).max()
             num_bisections = int(np.ceil(np.log(max([flow_mag_0_1_max, flow_mag_1_0_max]))/np.log(2)))
 
+            # for safety, limit the number of bisections to 5 
+            num_bisections = min(num_bisections, 5)
+
             if num_bisections == 0:
                 return [image[0]], F_0_1, [(t0 + t1) / 2]
 
@@ -150,6 +155,9 @@ class VideoDatasetUpsampling(Dataset):
 
         images = datapoint['images']
         fps = datapoint['fps']
+        
+        if self.output_name is not None:
+            outputs = datapoint[self.output_name]
 
         all_images = []
         all_timestamps = []
@@ -186,11 +194,19 @@ class VideoDatasetUpsampling(Dataset):
             optical_flows.append(optical_flow)
 
         images_per_patch = [len(a) for a in all_images]
-        return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
+        
+        if self.output_name is None:
+            return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
+        else:
+            return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows), np.array(outputs)
+
 
     def _upsample_to_fixed_framerate(self, datapoint, new_framerate):
         images = datapoint['images']
         fps = datapoint['fps']
+
+        if self.output_name is not None:
+            outputs = datapoint[self.output_name]
 
         all_images = []
         all_timestamps = []
@@ -241,7 +257,9 @@ class VideoDatasetUpsampling(Dataset):
 
         image_deltas.append(prev)
 
-        return np.array(images), np.concatenate(all_images, axis=0), np.array(image_deltas), np.array(all_timestamps), optical_flows
+        if self.output_name is None:
+            return np.array(images), np.concatenate(all_images, axis=0), np.array(image_deltas), np.array(all_timestamps), optical_flows
+        return np.array(images), np.concatenate(all_images, axis=0), np.array(image_deltas), np.array(all_timestamps), optical_flows, outputs
         
     def __len__(self): 
         return len(self.videoDataset)
@@ -256,11 +274,15 @@ class VideoDatasetUpsampling(Dataset):
 
 class VideoDatasetUpsamplingCacheToFolder(Dataset):
     def __init__(self, upsamplingDataset : VideoDatasetUpsampling,
-                 output_path, save_mp4=True, bit_depth=8):
+                 output_path, save_mp4=True, bit_depth=8,
+                 start_index = 0, override=False, save_optical_flow=True):
         self.upsamplingDataset = upsamplingDataset
         self.output_path = output_path
         self.save_mp4 = save_mp4
         self.bit_depth = bit_depth
+        self.start_index = start_index
+        self.override = override
+        self.save_optical_flow = save_optical_flow
         self.data = []
         self._cache()
 
@@ -301,112 +323,166 @@ class VideoDatasetUpsamplingCacheToFolder(Dataset):
             raise ValueError("bit_depth must be 8 or 10")
 
     def _cache(self):
+        import json, os, gc, time
+        import numpy as np
+        from pathlib import Path
+
+        print("Cacheing, start_index:", getattr(self, "start_index", 0))
 
         upsample_to_events = self.upsamplingDataset.upsample_to_events
         new_framerate = self.upsamplingDataset.new_framerate
 
-        run_computation = True
-        metadata = {"number_of_videos" : len(self.upsamplingDataset),
-                    "bit_depth" : self.bit_depth,
-                    "model_path" : self.upsamplingDataset.model_path,
-                    "optical_flow_saved" : True,
-                    "optical_flow_name" : "optical_flow.npz"
-                    }
-
+        # ---- metadata ----
+        metadata = {
+            "number_of_videos": len(self.upsamplingDataset),
+            "bit_depth": self.bit_depth,
+            "model_path": self.upsamplingDataset.model_path,
+            "optical_flow_saved": True,
+            "optical_flow_name": "optical_flow.npz",
+        }
         if upsample_to_events:
             metadata["upsampling_OF_saved"] = True
         else:
             metadata["upsampling_to_fixed_fps"] = True
             metadata["new_framerate"] = new_framerate
 
-        os.makedirs(os.path.join(self.output_path), exist_ok=True)
+        os.makedirs(self.output_path, exist_ok=True)
+        meta_path = os.path.join(self.output_path, "metadata.json")
 
-        if os.path.exists(os.path.join(self.output_path, "metadata.json")):
-            read_metadata = {}
-            print("Found already existing metadata file")
-            with open(os.path.join(self.output_path, "metadata.json"), "r") as f:
-                read_metadata = json.load(f)
-
-            # if the metadata matches the current metadata, skip computation ( if current metadata is a subset
-            # of the read metadata )
-            is_subset = True
-            for k, v in metadata.items():
-                if k in read_metadata:
-                    if metadata[k] != read_metadata[k]:
-                        is_subset = False
-                        break
-                else:
-                    is_subset = False
-                    break
-            run_computation = not is_subset
-
-            for k, v in read_metadata.items():
+        # merge existing metadata if present
+        if os.path.exists(meta_path):
+            with open(meta_path, "r") as f:
+                old = json.load(f)
+            for k, v in old.items():
                 if k not in metadata:
                     metadata[k] = v
 
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=4)
 
-        if run_computation:
-            pbar = tqdm.tqdm(range(len(self.upsamplingDataset)))
+        # ---- progress tracker ----
+        progress_path = os.path.join(self.output_path, "_progress.json")
+        if os.path.exists(progress_path):
+            try:
+                progress = json.load(open(progress_path))
+            except Exception:
+                progress = {}
+        else:
+            progress = {}
 
+        # helper: decide if sample i is already complete
+        def is_done(i: int) -> bool:
+            root = os.path.join(self.output_path, f"video_{i:05d}")
+            mp4_name = "video_upsampled_using_optical_flow.mp4" if upsample_to_events \
+                    else f"video_upsampled_fps_eq_{new_framerate}.mp4"
+            return os.path.exists(os.path.join(root, "params.json")) and os.path.exists(os.path.join(root, mp4_name))
 
-            with open(os.path.join(self.output_path, "metadata.json"), "w") as f:
-                json.dump(metadata, f, indent=4)
+        # if override=False, auto-advance start_index to first not-done
+        start_index = int(getattr(self, "start_index", 0) or 0)
+        if not getattr(self, "override", False):
+            for i in range(start_index, len(self.upsamplingDataset)):
+                if not is_done(i):
+                    start_index = i
+                    break
+            else:
+                print("[info] Nothing to do, all items completed.")
+                return
 
-            for i in pbar:
-                raw_images, upsampled_images, images_per_patches, timestamps, optical_flows = self.upsamplingDataset[i]
+        # write initial progress
+        progress.update({"start_index": start_index, "last_completed": progress.get("last_completed", start_index-1)})
+        json.dump(progress, open(progress_path, "w"), indent=2)
 
-                # shape (512, 180, 240, 3), dtype=float32
+        import tqdm, torch, tensorflow as tf
 
-                params = { "raw_images" : "raw_images.npz",
-                          "fps" : self.upsamplingDataset.videoDataset.fps,
-                          "optical_flow_path" : "optical_flow.npz"}
+        # periodic cleanup knobs
+        CLEAR_EVERY = 12
 
-                if upsample_to_events:
-                    params['new_images_per_pair_OF'] =  images_per_patches.tolist()
-                    params["timestamps_OF"] = timestamps.tolist()
+        pbar = tqdm.tqdm(range(start_index, len(self.upsamplingDataset)))
+        for idx, i in enumerate(pbar, start=start_index):
+            root_folder = os.path.join(self.output_path, f"video_{i:05d}")
+            Path(root_folder).mkdir(parents=True, exist_ok=True)
 
-                else:
-                    params['new_images_per_pair_FF'] =  images_per_patches.tolist()
-                    params["timestamps_FF"] = timestamps.tolist()
+            # skip if already done and not overriding
+            if not getattr(self, "override", False) and is_done(i):
+                progress["last_completed"] = i
+                json.dump(progress, open(progress_path, "w"), indent=2)
+                continue
 
-                root_folder = os.path.join(self.output_path, f"video_{i:05d}")
-                os.makedirs(root_folder, exist_ok=True)
+            # build params, decide MP4 path
+            if upsample_to_events:
+                mp4_path = os.path.join(root_folder, "video_upsampled_using_optical_flow.mp4")
+            else:
+                mp4_path = os.path.join(root_folder, f"video_upsampled_fps_eq_{new_framerate}.mp4")
 
-                if os.path.exists(os.path.join(root_folder, "params.json")):
-                    r = json.load(open(os.path.join(root_folder, "params.json")))
+            params_path = os.path.join(root_folder, "params.json")
 
-                    for k, v in r.items():
-                        if k not in params:
-                            params[k] = v
+            # ----- compute one item -----
+            print(f"processing : {idx}")
+            
+            ds_out = self.upsamplingDataset[i]
+            if len(ds_out) == 5:
+                raw_images, upsampled_images, images_per_patches, timestamps, optical_flows = ds_out
+                outputs = raw_images
+            else:
+                raw_images, upsampled_images, images_per_patches, timestamps, optical_flows, outputs = ds_out
 
-                with open(os.path.join(root_folder, "params.json"), "w") as f:
-                    json.dump(params, f, indent=4)
+            params = {
+                        "raw_images": "raw_images.npz",
+                        "fps": self.upsamplingDataset.videoDataset.fps,
+                        "optical_flow_path": "optical_flow.npz",
+                    }
+            
+            if upsample_to_events:
+                        params["new_images_per_pair_OF"] = images_per_patches.tolist()
+                        params["timestamps_OF"] = timestamps.tolist()
+            else:
+                        params["new_images_per_pair_FF"] = images_per_patches.tolist()
+                        params["timestamps_FF"] = timestamps.tolist()
 
-                if upsample_to_events:
-                    mp4_path = os.path.join(root_folder, f"video_upsampled_using_optical_flow.mp4")
-                else:
-                    mp4_path = os.path.join(root_folder, f"video_upsampled_fps_eq_{new_framerate}.mp4")
+            # merge any existing params
+            if os.path.exists(params_path):
+                existing = json.load(open(params_path))
+                for k, v in existing.items():
+                    if k not in params:
+                        params[k] = v
+            
+            with open(params_path, "w") as f:
+                json.dump(params, f, indent=4)
 
-                self._write_mp4(upsampled_images, mp4_path, fps=params["fps"])
+            # write outputs asap
+            self._write_mp4(upsampled_images, mp4_path, fps=params["fps"])
+            del upsampled_images
 
-                np.savez_compressed(os.path.join(root_folder, params["raw_images"]),
-                                    raw_images = raw_images)
+            np.savez_compressed(os.path.join(root_folder, params["raw_images"]), raw_images=raw_images)
+            del raw_images
+            
+            if outputs is not None:
+                np.savez_compressed(os.path.join(root_folder, "outputs.npz"), outputs=outputs)
+                del outputs
 
-                if not os.path.exists(os.path.join(root_folder, params["optical_flow_path"])):
-                    np.savez_compressed(os.path.join(root_folder, params["optical_flow_path"]),
-                                    optical_flow=optical_flows)
-                    
-                del raw_images, upsampled_images, images_per_patches, timestamps, optical_flows
-                
-                if i % 5 == 0:
-                    gc.collect()
-                    try:
-                        torch.cuda.empty_cache()
-                    except Exception:
-                        pass
-                    tf.keras.backend.clear_session()
+            of_path = os.path.join(root_folder, params["optical_flow_path"])
+            if self.save_optical_flow and optical_flows is not None and hasattr(optical_flows, "shape") and optical_flows.shape[0] != 0:
+                if not os.path.exists(of_path):
+                    np.savez_compressed(of_path, optical_flow=optical_flows)
+            
+            del optical_flows, images_per_patches, timestamps
 
+            # mark success and persist progress
+            progress["last_completed"] = i
+            json.dump(progress, open(progress_path, "w"), indent=2)
 
+            # light cleanup
+            try: torch.cuda.empty_cache()
+            except Exception: pass
+
+            # periodic heavy cleanup
+            if ((i - start_index + 1) % CLEAR_EVERY) == 0:
+                gc.collect()
+                try: tf.keras.backend.clear_session()
+                except Exception: pass
+
+        print("[info] Cacheing pass finished. last_completed =", progress.get("last_completed"), 
+            "failed =", progress.get("failed", []))
 
 
 if __name__ == "__main__":

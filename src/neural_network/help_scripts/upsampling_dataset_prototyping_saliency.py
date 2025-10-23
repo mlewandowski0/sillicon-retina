@@ -66,7 +66,7 @@ def write_sequence_and_original_to_video(upsampled, timestamps, original, origin
 
 
 def upsample():
-    video_val = VideoDatasetFromVideoPairGlobal(dirpath=os.path.join("src", "neural_network", "data", "saliency_dataset_processed"),
+    video_val = VideoDatasetFromVideoPairGlobal(dirpath=os.path.join("src", "neural_network", "data", "saliency_dataset_truncated"),
                                                    split=None,
                                                    global_fps=30,
                                                    input_video="input.AVI",
@@ -77,11 +77,13 @@ def upsample():
                                            model_path=os.path.join("models", "film_net", "Style", "saved_model"),
                                            upsample_to_events=True,
                                            new_framerate=False,
+                                           output_name="maps",
                                            debug = False)
 
 
     VideoDatasetUpsamplingCacheToFolder(upsamplingDataset=upsampling_ds_val,
-                                        output_path=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"))
+                                        output_path=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
+                                        start_index=0, override=False, save_optical_flow = False)
 
 
 

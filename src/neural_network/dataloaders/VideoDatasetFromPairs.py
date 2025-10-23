@@ -7,7 +7,7 @@ import numpy as np
 import os
 import cv2
 
-def load_frames_from_video(video_path, scale=0.4):
+def load_frames_from_video(video_path, scale=0.5):
     frames = []
     for frame in iio.imiter(video_path):
         if scale != 1.0:
