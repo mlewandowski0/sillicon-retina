@@ -102,6 +102,7 @@ class VideoDatasetUpsampling(Dataset):
                  new_framerate : Optional[int] = None,
                  debug : bool = False,
                  align: Optional[int] = None,
+                 return_optical_flows : bool = True,
                  output_name : Optional[str] = None) -> None:
 
         super(VideoDatasetUpsampling, self).__init__()
@@ -111,6 +112,7 @@ class VideoDatasetUpsampling(Dataset):
         self.new_framerate = new_framerate
         self.debug = debug
         self.output_name = output_name
+        self.return_optical_flows = return_optical_flows
 
         if not self.upsample_to_events and new_framerate is None:
             raise Exception("Upsampling to events was specified to False and new framerate was not provided !")
@@ -134,7 +136,7 @@ class VideoDatasetUpsampling(Dataset):
             num_bisections = int(np.ceil(np.log(max([flow_mag_0_1_max, flow_mag_1_0_max]))/np.log(2)))
 
             # for safety, limit the number of bisections to 5 
-            num_bisections = min(num_bisections, 5)
+            num_bisections = min(num_bisections, 4)
 
             if num_bisections == 0:
                 return [image[0]], F_0_1, [(t0 + t1) / 2]
@@ -191,14 +193,20 @@ class VideoDatasetUpsampling(Dataset):
                 print(f"Generated : {len(total_frames)}")
             all_images.append(total_frames)
             all_timestamps.append(timestamps)
-            optical_flows.append(optical_flow)
+            
+            if self.return_optical_flows:
+                optical_flows.append(optical_flow)
 
         images_per_patch = [len(a) for a in all_images]
+
+        if self.return_optical_flows:
+            optical_flows = np.concatenate(optical_flows)
+
         
         if self.output_name is None:
-            return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows)
+            return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), optical_flows
         else:
-            return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), np.concatenate(optical_flows), np.array(outputs)
+            return np.array(images), np.concatenate(all_images), np.array(images_per_patch), np.concatenate(all_timestamps), optical_flows, np.array(outputs)
 
 
     def _upsample_to_fixed_framerate(self, datapoint, new_framerate):
@@ -266,6 +274,7 @@ class VideoDatasetUpsampling(Dataset):
 
     def __getitem__(self, idx):
         datapoint = self.videoDataset[idx]
+        print("Processing index :", idx, " path : ", datapoint.get("path", "N/A"))
 
         if self.upsample_to_events:
             return self._upsample_optical_flow(datapoint)

@@ -58,7 +58,7 @@ class VideoDatasetFromVideoPairGlobal(Dataset):
         x = load_frames_from_video(x)
         y = load_frames_from_video(y)
 
-        return {"images" : np.array(x), "maps": y, "fps": self.fps}
+        return {"images" : np.array(x), "maps": y, "fps": self.fps, "path": path}
     
     
     

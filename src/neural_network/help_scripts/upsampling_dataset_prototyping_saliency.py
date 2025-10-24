@@ -76,8 +76,9 @@ def upsample():
     upsampling_ds_val = VideoDatasetUpsampling(video_val,
                                            model_path=os.path.join("models", "film_net", "Style", "saved_model"),
                                            upsample_to_events=True,
-                                           new_framerate=False,
+                                           new_framerate=None,
                                            output_name="maps",
+                                           return_optical_flows=False,
                                            debug = False)
 
 
