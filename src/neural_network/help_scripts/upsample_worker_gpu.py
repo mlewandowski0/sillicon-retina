@@ -77,6 +77,8 @@ def main():
         model_path=os.path.join("models","film_net","Style","saved_model"),
         upsample_to_events=True,
         new_framerate=False,
+        output_name="maps",
+        return_optical_flows=False,
         debug=False
     )
 
@@ -85,7 +87,8 @@ def main():
         upsamplingDataset=upsampling_ds_val,
         output_path=OUT,
         start_index=start_index,
-        override=False
+        override=False,
+        save_optical_flow = False
     )
 
 if __name__ == "__main__":
