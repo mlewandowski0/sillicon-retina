@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import numpy as np 
 import torch 
+from tqdm import tqdm 
 
 
 class SaliencyDatasetWrapper(Dataset):
@@ -17,7 +18,7 @@ class SaliencyDatasetWrapper(Dataset):
         
          # Build valid indices for sequences
         self.valid_indices = []
-        for idx in range(len(self.dataset)):
+        for idx in tqdm(range(len(self.dataset))):
             item = self.dataset[idx]
             n_frames = item['frames'].shape[0]
             n_grids = item['grids'].shape[0]
@@ -105,8 +106,8 @@ class SaliencyDatasetWrapper(Dataset):
             flows = None
             flows_sequence = None
         
-        if outputs(outputs, np.ndarray):
-            if frames.dtype != np.float32:
+        if isinstance(outputs, np.ndarray):
+            if outputs.dtype != np.float32:
                 outputs = outputs.astype(np.float32) / 255.0
         else:
             if torch.any(outputs > 2.0):
@@ -231,17 +232,21 @@ class SaliencyDatasetWrapper(Dataset):
         if include_initial and actual_length < self.sequence_length:
             valid_mask[actual_length:] = False
 
-        return {
+        ret = {
             'frames': frame_sequence.float(),
             'grids': grid_sequence.float(),
-            "optical_flows" : flow_sequence.float() if flow_sequence is not None else None,
             'valid_mask': valid_mask,
             'is_initial': include_initial
         }
+        
+        if flows is not None:
+            ret['optical_flows'] = flow_sequence.float()
+        
+        return ret
 
 
 if __name__ == "__main__":
-    from .EventDatasetFromUpsampledSaliency import EventDatasetFromUpsampledSaliency 
+    from src.neural_network.dataloaders.EventDatasetFromUpsampledSaliency import EventDatasetFromUpsampledSaliency 
     import os 
  
     ds = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
@@ -249,6 +254,7 @@ if __name__ == "__main__":
                                            preprocessing_params = {"num_bins":5},
                                             mode="event",
                                             B=5,
+                                            limit = 10,
                                             force_recomputing=False)
 
 
@@ -258,9 +264,6 @@ if __name__ == "__main__":
     sample = wrapped_dataset[0]
     frames = sample['frames']
     grids = sample['grids']
-    of = sample['optical_flows']
 
     print("Sample frames shape: ", frames.shape)
     print("Sample grids shape: ", grids.shape)
-    print("Sample optical flows shape: ", of.shape)
-    print("Sample valid mask: ", sample['valid_mask'])

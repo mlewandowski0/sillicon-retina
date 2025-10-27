@@ -1,50 +1,67 @@
 {
-    // Użyj funkcji IntelliSense, aby uzyskać informacje o możliwych atrybutach.
-    // Najedź kursorem, aby wyświetlić opisy istniejących atrybutów.
-    // Aby uzyskać więcej informacji, odwiedź stronę: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [
-
-
-        
-        {
-            "name": "CUDA C++: Launch",
-            "type": "cuda-gdb",
-            "request": "launch",
-            "program": ""
-        },
-        {
-            "name": "CUDA C++: Attach",
-            "type": "cuda-gdb",
-            "request": "attach"
-        },
-        {
+  // Użyj funkcji IntelliSense, aby uzyskać informacje o możliwych atrybutach.
+  // Najedź kursorem, aby wyświetlić opisy istniejących atrybutów.
+  // Aby uzyskać więcej informacji, odwiedź stronę: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CUDA C++: Launch",
+      "type": "cuda-gdb",
+      "request": "launch",
+      "program": ""
+    },
+    {
+      "name": "CUDA C++: Attach",
+      "type": "cuda-gdb",
+      "request": "attach"
+    },
+    {
       "name": "Python: Current File (repo root cwd)",
       "type": "debugpy",
-      "args": ["-c", "src/neural_network/configs/FIREnetwork_event_spkt_trace5.json"],
+      "args": [
+        "-c",
+        "src/neural_network/configs/FIREnetwork_event_spkt_trace5.json"
+      ],
       "request": "launch",
-      "program": "${file}",                 // runs the currently open file
+      "program": "${file}", // runs the currently open file
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",          // important: so your relative paths work
+      "cwd": "${workspaceFolder}", // important: so your relative paths work
       "env": {
-        "PYTHONPATH": "${workspaceFolder}"  // so 'esim_torch' and 'src.*' resolve
+        "PYTHONPATH": "${workspaceFolder}" // so 'esim_torch' and 'src.*' resolve
       },
-      "justMyCode": false,                  // lets you step into your utils, etc.
+      "justMyCode": false, // lets you step into your utils, etc.
       "redirectOutput": true
     },
-            {
+    {
+      "name": "Saliency FireNetwork",
+      "type": "debugpy",
+      "args": [
+        "-c",
+        "src/neural_network/configs/FIREnetwork_event_saliency.json"
+      ],
+      "request": "launch",
+      "program": "${file}", // runs the currently open file
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}", // important: so your relative paths work
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}" // so 'esim_torch' and 'src.*' resolve
+      },
+      "justMyCode": false, // lets you step into your utils, etc.
+      "redirectOutput": true
+    },
+    {
       "name": "RUN BO",
       "type": "debugpy",
       "args": [],
       "request": "launch",
-      "program": "${file}",                 // runs the currently open file
+      "program": "${file}", // runs the currently open file
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",          // important: so your relative paths work
+      "cwd": "${workspaceFolder}", // important: so your relative paths work
       "env": {
-        "PYTHONPATH": "${workspaceFolder}"  // so 'esim_torch' and 'src.*' resolve
+        "PYTHONPATH": "${workspaceFolder}" // so 'esim_torch' and 'src.*' resolve
       },
-      "justMyCode": false,                  // lets you step into your utils, etc.
+      "justMyCode": false, // lets you step into your utils, etc.
       "redirectOutput": true
     }
-    ]
+  ]
 }

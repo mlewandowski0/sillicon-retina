@@ -16,7 +16,7 @@ def _mk_cache_paths_events(folder, B, ctn, ctp, version='v2'):
     return {
         "grids": os.path.join(folder, base + "_grids.npy"),
         "frames": os.path.join(folder, "raw_images.npz"),
-        "outputs" : os.path.join(folder, base + "_outputs.npz"),
+        "outputs" : os.path.join(folder, base + "_outputs.npy"),
         "x": os.path.join(folder, base + "_x.npy"),
         "y": os.path.join(folder, base + "_y.npy"),
         "t": os.path.join(folder, base + "_t.npy"),
@@ -31,7 +31,7 @@ def _mk_cache_paths_SE(folder, B):
     return {
         "grids": os.path.join(folder, base + "_grids.npy"),
         "frames": os.path.join(folder, "raw_images.npz"),
-        "outputs" : os.path.join(folder, base + "_outputs.npz"),
+        "outputs" : os.path.join(folder, base + "_outputs.npy"),
         "x": os.path.join(folder, base + "_x.npy"),
         "y": os.path.join(folder, base + "_y.npy"),
         "t": os.path.join(folder, base + "_t.npy"),

@@ -25,6 +25,7 @@ class EventDatasetFromUpsampledSaliency(Dataset):
                        force_recomputing=False,
                        device="cuda",
                        verbose=False,
+                       save_xypt = False,
                        limit=-1,
                        grids_dtype=np.float16):
 
@@ -39,6 +40,7 @@ class EventDatasetFromUpsampledSaliency(Dataset):
         self.grids_dtype = grids_dtype
         self.verbose = verbose
         self.prediction_video_name = prediction_video_name
+        self.save_xypt = save_xypt
         
         self.contrast_threshold_neg = preprocessing_params.get("contrast_threshold_neg", contrast_threshold_neg)
         self.contrast_threshold_pos = preprocessing_params.get("contrast_threshold_pos", contrast_threshold_pos)
@@ -141,19 +143,23 @@ class EventDatasetFromUpsampledSaliency(Dataset):
     def _read_events_or_create(self, folder, properties):
 
         paths = self._mk_paths(folder)
+        
+        if self.save_xypt:
+            have_xypt_cache = os.path.exists(paths['x']) and os.path.exists(paths['y']) and os.path.exists(paths['t']) and os.path.exists(paths['p'])
+        else:
+            have_xypt_cache = True
+
 
         have_cache = (os.path.exists(paths['grids'])
-                      and os.path.exists(paths['outputs'])
-                      and os.path.exists(paths['x'])
-                      and os.path.exists(paths['y'])
-                      and os.path.exists(paths['t'])
-                      and os.path.exists(paths['p']))
+                      and os.path.exists(paths['outputs']) and have_xypt_cache)
 
         if have_cache and not self.force_recomputing:
             # fast path: mmapped reads
 
             # (T, B, H, W), dtype=np.float16
             grids_np = _memmap_load(paths['grids'])
+            # zero-copy views into tensors on CPU: later moved to CUDA
+            event_grids = torch.as_tensor(grids_np)
 
             # (T+1, H, W) uint8
             frames_np = _memmap_load(paths['frames'])
@@ -161,20 +167,25 @@ class EventDatasetFromUpsampledSaliency(Dataset):
             # read outputs 
             outputs_np = _memmap_load(paths['outputs'])
 
-            x_np = _memmap_load(paths["x"])  # uint16
-            y_np = _memmap_load(paths["y"])  # uint16
-            t_np = _memmap_load(paths["t"])  # int64
-            p_np = _memmap_load(paths["p"])  # int8
+            if self.save_xypt:
+                x_np = _memmap_load(paths["x"])  # uint16
+                y_np = _memmap_load(paths["y"])  # uint16
+                t_np = _memmap_load(paths["t"])  # int64
+                p_np = _memmap_load(paths["p"])  # int8
+
+                events = {
+                    "x": torch.as_tensor(x_np),
+                    "y": torch.as_tensor(y_np),
+                    "t": torch.as_tensor(t_np),
+                    "p": torch.as_tensor(p_np),
+                }
+            else:
+                events = {"x" : None, 
+                        "y" : None,
+                        "t" : None,
+                        "p" : None}
 
 
-            # zero-copy views into tensors on CPU: later moved to CUDA
-            event_grids = torch.as_tensor(grids_np)
-            events = {
-                "x": torch.as_tensor(x_np),
-                "y": torch.as_tensor(y_np),
-                "t": torch.as_tensor(t_np),
-                "p": torch.as_tensor(p_np),
-            }
             result = {
                 "frames": np.array(frames_np['raw_images']).astype(np.float32) / 255.,  # keep as numpy (cheap, contiguous)
                 "outputs" : np.array(outputs_np),
@@ -296,26 +307,37 @@ class EventDatasetFromUpsampledSaliency(Dataset):
         _save_cached_npy(paths["outputs"], outputs)
 
         # Compact events to smaller dtypes on disk
-        _save_cached_npy(paths["x"], x.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
-        _save_cached_npy(paths["y"], y.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
-        _save_cached_npy(paths["t"], t.detach().to("cpu").to(torch.int64).numpy())
-        _save_cached_npy(paths["p"], p.detach().to("cpu").to(torch.int8).numpy())
+        
+        if self.save_xypt:
+            _save_cached_npy(paths["x"], x.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
+            _save_cached_npy(paths["y"], y.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
+            _save_cached_npy(paths["t"], t.detach().to("cpu").to(torch.int64).numpy())
+            _save_cached_npy(paths["p"], p.detach().to("cpu").to(torch.int8).numpy())
 
         del events, input_images, timestamps_ns_t
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            
+            
+        if self.save_xypt:
+            events = {
+                "x": x.to("cpu"),
+                "y": y.to("cpu"),
+                "t": t.to("cpu"),
+                "p": p.to("cpu"),
+            }
+        else:
+            events = {"x" : None, 
+                      "y" : None,
+                      "t" : None,
+                      "p" : None}
 
 
         # Return in the same shapes/types you expect
         result = {
             "frames": raw_frames,                                 # np.uint8
             "outputs" : outputs,
-            "events": {
-                "x": x.to("cpu"),
-                "y": y.to("cpu"),
-                "t": t.to("cpu"),
-                "p": p.to("cpu"),
-            },
+            "events": events,
             "grids": event_grids.to("cpu"),                       # torch.float32 -> we saved float16
         }
 

@@ -15,8 +15,8 @@ from tqdm import tqdm
 from src.neural_network.networks.FIRE_network import FIRE_network
 from src.neural_network.networks.PerceptualLoss import PerceptualLoss
 from src.neural_network.networks.TemporalConsistencyLoss import TemporalConsistencyLoss
-from src.neural_network.dataloaders.ECOCODatasetWrapper import ECOCODatasetWrapper
-from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint  # <-- add this
+from src.neural_network.dataloaders.SaliencyDatasetWrapper import SaliencyDatasetWrapper
+from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint  
 from src.neural_network.dataloaders.EventDatasetFromUpsampledSaliency import EventDatasetFromUpsampledSaliency
 
 from torch.optim.lr_scheduler import StepLR
@@ -323,22 +323,7 @@ if __name__ == "__main__":
         print(f"  {key}: {value}")
 
 
-    train_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_small_subset_train"),
-                                   mode="event",
-                                   preprocessing_params=event_representation_params,
-                                   log_scale=log_input,
-                                   force_recomputing=force_recomputing,
-                                   limit=config["train_limit"],
-                                   verbose=verbose)
-
-    train_dataset = ECOCODatasetWrapper(
-        train_base,
-        sequence_length=config['sequence_length'],
-        skip_frames=config.get('skip_frames', 1),
-        augment=config["augment"],
-    )
-
-    val_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_small_subset_valid"),
+    train_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
                                    mode="event",
                                    prediction_video_name="outputs.npz",
                                    preprocessing_params=event_representation_params,
@@ -347,12 +332,24 @@ if __name__ == "__main__":
                                    limit=config["train_limit"],
                                    verbose=verbose)
 
-    val_dataset = ECOCODatasetWrapper(
-        val_base,
-        sequence_length=config['sequence_length'],
-        skip_frames=skip_frames,
-        augment=config["augment"]
-    )
+    train_dataset = SaliencyDatasetWrapper(train_base,
+                                           sequence_length=config['sequence_length'],
+                                           skip_frames=config.get('skip_frames', 1),
+                                           augment=config["augment"])
+
+    val_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
+                                   mode="event",
+                                   prediction_video_name="outputs.npz",
+                                   preprocessing_params=event_representation_params,
+                                   log_scale=log_input,
+                                   force_recomputing=force_recomputing,
+                                   limit=config["train_limit"],
+                                   verbose=verbose)
+
+    val_dataset = SaliencyDatasetWrapper(val_base,
+                                         sequence_length=config['sequence_length'],
+                                         skip_frames=skip_frames,
+                                         augment=config["augment"])
 
     train_loader = DataLoader(
         train_dataset,
