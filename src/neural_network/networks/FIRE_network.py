@@ -12,7 +12,7 @@ class Head(nn.Module):
         self.conv1 = nn.Conv2d(input, out_channels, kernel_size=ks1, padding=padding)
 
         if add_bn:
-            self.bn1 = nn.BatchNorm2d(out_channels)
+            self.bn1 = nn.GroupNorm(num_groups=8, num_channels=out_channels) 
         else:
             self.bn1 = nn.Identity()
 
@@ -43,12 +43,13 @@ class ResidualBlock(nn.Module):
 
 
 class FIRE_network(nn.Module):
-    def __init__(self, in_ch, hid1=16, ks1=5, add_bn=True, out_sigmoid=True):
+    def __init__(self, in_ch, hid1=16, ks1=5, add_bn=True, out_mode="sigmoid"):
         super().__init__()
 
         self.in_ch = in_ch
         self.hid1 = hid1
         self.ks1 = ks1
+        
 
         self.head = Head(in_ch, hid1, ks1, add_bn)
 
@@ -62,10 +63,16 @@ class FIRE_network(nn.Module):
 
         self.conv = nn.Conv2d(hid1, 1, kernel_size=1, padding=0)
 
-        if out_sigmoid:
+        if out_mode.lower() == "sigmoid":
             self.out = nn.Sigmoid()
-        else:
+        elif out_mode.lower() == "density":
+            self.out = nn.Softplus(beta=1.0)
+        elif out_mode.lower() == "identity":
             self.out = nn.Identity()
+        elif out_mode.lower() == "relu":
+            self.out = nn.ReLU()
+        else:
+            raise NotImplementedError(f"Output mode {out_mode} not implemented.")
 
 
         self.state1 = None

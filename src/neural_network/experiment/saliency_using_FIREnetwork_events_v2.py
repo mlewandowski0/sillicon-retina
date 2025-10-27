@@ -13,8 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.neural_network.networks.FIRE_network import FIRE_network
-from src.neural_network.networks.PerceptualLoss import PerceptualLoss
-from src.neural_network.networks.TemporalConsistencyLoss import TemporalConsistencyLoss
+from src.neural_network.networks.SaliencyLoss import SaliencyLoss
 from src.neural_network.dataloaders.SaliencyDatasetWrapper import SaliencyDatasetWrapper
 from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint  
 from src.neural_network.dataloaders.EventDatasetFromUpsampledSaliency import EventDatasetFromUpsampledSaliency
@@ -35,7 +34,7 @@ class StepLRWithMin(StepLR):
 
 
 def train_epoch(model, loader, optimizer, device, epoch, config,
-                lpips_loss: PerceptualLoss, tc_loss: TemporalConsistencyLoss, profiler):
+                saliency_loss, profiler):
 
     model.train()
     total = 0.0
@@ -81,55 +80,40 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 
         loss = torch.zeros((), device=device)
         valid_steps = 0
-        Ihat_prev = None
-        Igt_prev = None
-        perceptual_term_sum = 0.0
-        temporal_consistency_term_sum = 0.0
-
-        smooth_term_sum = 0.0
-        edge_term_sum = 0.0
+        kl_term_sum = 0.0
+        cc_term_sum = 0.0
 
         Igt_t = None
         Ihat_t = None
 
 
         with torch.amp.autocast(device_type, enabled=use_amp, dtype=amp_dtype):
-            # WARM-UP (no loss)
+            # warm-up
             bi = min(burn_in_steps, L)
             for t in range(bi):
-                if not valid[:, t].any():
+                if not valid[:, t].any(): 
                     continue
                 _ = model(grids[:, t])
 
-            # MAIN Pass
-            for t in range(bi, L):
-                # skip time step if no sample in batch has it valid
-                if not valid[:, t].any():
-                    continue
+        # main pass
+        for t in range(bi, L):
+            if not valid[:, t].any():
+                continue
 
-                x_t = grids[:, t]       # (B, 5, H, W)
-                Igt_t = frames[:, t]    # (B, 1, H, W)
-                Ihat_t = model(x_t)     # (B, 1, H, W)
+            x_t  = grids[:, t]      # (B, C, H, W)
+            Igt_t = frames[:, t]    # (B, 1, H, W)
 
-                # dataloaders loss (make sure it reduces to scalar)
-                perceptual_loss = lpips_loss(Ihat_t, Igt_t).mean()
+            # forward under autocast
+            with torch.amp.autocast(device_type, enabled=use_amp, dtype=amp_dtype):
+                Ihat_t = model(x_t)
 
-                # temporal consistency (device-safe zero if not applicable)
-                temporal_consistency_term = torch.zeros((), device=Igt_t.device)
-                if (tc_loss is not None) and (Igt_prev is not None) and (Ihat_prev is not None) and (flows is not None):
-                    # optical flow at step t: (B, 2, H, W)
-                    of = flows[:, t]
-                    temporal_consistency_term = tc_loss(of, Ihat_t, Ihat_prev, Igt_t, Igt_prev)
+            # loss in fp32 (outside autocast)
+            step_loss, kl_loss, cc_loss = saliency_loss(Ihat_t, Igt_t)
+            loss = loss + step_loss
 
-                loss = loss + perceptual_loss + temporal_consistency_term
-
-                # stats
-                perceptual_term_sum += float(perceptual_loss.detach().cpu().item())
-                temporal_consistency_term_sum += float(temporal_consistency_term.detach().cpu().item())
-
-                Ihat_prev = Ihat_t.detach()
-                Igt_prev = Igt_t
-                valid_steps += 1
+            kl_term_sum += float(kl_loss.detach().cpu().item())
+            cc_term_sum += float(cc_loss.detach().cpu().item())
+            valid_steps += 1
 
         # Optional debug save
         if config.get("debug_save", False) and (batch_idx % config.get("debug_iters", 100) == 0):
@@ -176,8 +160,8 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         pbar.set_postfix({
             'loss': f"{total / (batch_idx + 1):.4f}",
             'lr': optimizer.param_groups[0]['lr'],
-            'percep_sum': f"{(perceptual_term_sum/valid_steps):.3f}",
-            'tc_sum': f"{(temporal_consistency_term_sum/valid_steps):.3f}",
+            'kl_sum': f"{(kl_term_sum/valid_steps):.3f}",
+            'cc_sum': f"{(cc_term_sum/valid_steps):.3f}",
         })
 
         # Log to wandb if enabled
@@ -185,8 +169,8 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
             wandb.log({
                 'train_loss_step': float(loss.detach().cpu().item()),
                 'learning_rate': optimizer.param_groups[0]['lr'],
-                'perceptual_loss_sum': perceptual_term_sum,
-                'temporal_consistency_term_sum': temporal_consistency_term_sum,
+                'kl_loss_sum': kl_term_sum / valid_steps,
+                'cc_term_sum': cc_term_sum / valid_steps,
                 'epoch': epoch,
                 'step': epoch * len(loader) + batch_idx
             })
@@ -194,8 +178,7 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 
 
 @torch.no_grad()
-def validate(model, loader, device, epoch, config,
-             lpips_loss: PerceptualLoss, tc_loss: TemporalConsistencyLoss):
+def validate(model, loader, device, epoch, config, saliency_loss):
     model.eval()
     total = 0.0
 
@@ -217,8 +200,6 @@ def validate(model, loader, device, epoch, config,
 
         loss = 0.0
         valid_steps = 0
-        Ihat_prev = None
-        Igt_prev = None
 
         bi = min(burn_in_steps, L)
         for t in range(bi):
@@ -231,16 +212,12 @@ def validate(model, loader, device, epoch, config,
 
             x_t = grids[:, t]
             Igt_t = frames[:, t]
+            
             Ihat_t = model(x_t)
 
-            Lr = lpips_loss(Ihat_t, Igt_t).mean()
 
-            Ltc = torch.zeros((), device=Igt_t.device)
-            if (tc_loss is not None) and (Igt_prev is not None) and (Ihat_prev is not None) and (flows is not None):
-                of = flows[:, t]
-                Ltc = tc_loss(of, Ihat_t, Ihat_prev, Igt_t, Igt_prev)
-
-            loss = loss + Lr + Ltc
+            loss_sample, _, _ = saliency_loss(Ihat_t, Igt_t)
+            loss += loss_sample
 
             Ihat_prev = Ihat_t
             Igt_prev = Igt_t
@@ -266,7 +243,7 @@ if __name__ == "__main__":
     with open(config_file, "r") as f:
         config = json.load(f)
 
-    print("E2VID Training on ECOCO Dataset")
+    print("FIRENetwork Training on Saliency Dataset")
     print("================================")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -276,7 +253,7 @@ if __name__ == "__main__":
     config["use_wandb"] = use_wandb
     if config.get('use_wandb', False):
         wandb.init(
-            project="e2vid-ecoco",
+            project="e2vid-saliency",
             config=config,
             name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
@@ -288,7 +265,7 @@ if __name__ == "__main__":
                          hid1=config["hid1"],
                          ks1=config["ks1"],
                          add_bn=config["add_bn"],
-                         out_sigmoid=config["out_sigmoid"]).to(device)
+                         out_mode=config["out_mode"]).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
     
     
@@ -390,8 +367,7 @@ if __name__ == "__main__":
     print(f"Val dataset: {len(val_dataset)} sequences")
 
     # Losses and optimizer
-    criterion = PerceptualLoss(use_lpips=config.get('use_lpips', False))
-    temporal_criterion = TemporalConsistencyLoss()  # ensure it runs on same device internally
+    loss_func = SaliencyLoss(eps=1e-4)
 
     optimizer = optim.Adam(
         model.parameters(),
@@ -414,13 +390,11 @@ if __name__ == "__main__":
 
         train_loss = train_epoch(
             model, train_loader, optimizer, device, epoch, config,
-            lpips_loss=criterion, tc_loss=temporal_criterion, profiler=prof
-        )
+            saliency_loss=loss_func, profiler=prof)
 
         val_loss = validate(
             model, val_loader, device, epoch, config,
-            lpips_loss=criterion, tc_loss=temporal_criterion
-        )
+            saliency_loss=loss_func)
 
         print(f"\nTrain Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 

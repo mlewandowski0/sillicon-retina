@@ -8,7 +8,7 @@
         "hid1" : 32,
         "ks1" : 3,
         "add_bn" : false,
-        "out_sigmoid" : false,
+        "out_mode" : "density",
 
         "use_amp" : true,
         "amp_dtype" : "fp16",
@@ -18,8 +18,8 @@
 
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
-        "train_limit": 10,
-        "val_limit": 10,
+        "train_limit": null,
+        "val_limit": null,
         "skip_frames": 1,
 
         "batch_size": 2,
@@ -44,5 +44,5 @@
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": false
+        "use_wandb": true
     }

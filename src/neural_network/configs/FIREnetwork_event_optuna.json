@@ -8,7 +8,7 @@
         "hid1" : 32,
         "ks1" : 3,
         "add_bn" : false,
-        "out_sigmoid" : false,
+        "out_mode" : "sigmoid",
 
         "use_amp" : true,
         "amp_dtype" : "fp16",
