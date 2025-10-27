@@ -241,10 +241,19 @@ class SaliencyDatasetWrapper(Dataset):
 
 
 if __name__ == "__main__":
-    from .ECOCO_dataset_file_cached import ECOCO_dataset_file_cached 
-    dataset = ECOCO_dataset_file_cached(root="src/neural_network/data/ecoco_depthmaps_test",
-                                        split="train", cache_folder="src/neural_network/data/ecoco_train_test", limit=20)
-    wrapped_dataset = ECOCODatasetWrapper(dataset, sequence_length=20, skip_frames=1, include_intial_frames_prob=0.3)
+    from .EventDatasetFromUpsampledSaliency import EventDatasetFromUpsampledSaliency 
+    import os 
+ 
+    ds = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
+                                           prediction_video_name="outputs.npz",
+                                           preprocessing_params = {"num_bins":5},
+                                            mode="event",
+                                            B=5,
+                                            force_recomputing=False)
+
+
+    
+    wrapped_dataset = SaliencyDatasetWrapper(ds, sequence_length=20, skip_frames=1, include_intial_frames_prob=0.3)
     print(f"Wrapped dataset length: {len(wrapped_dataset)}")
     sample = wrapped_dataset[0]
     frames = sample['frames']
