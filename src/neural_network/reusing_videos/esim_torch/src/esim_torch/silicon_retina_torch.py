@@ -48,6 +48,11 @@ class SiliconRetinaConfig:
         # ignore unknown keys so older code can read newer JSONs
         names = {f.name for f in fields(cls)}
         filtered = {k: v for k, v in d.items() if k in names}
+        
+        filtered['HPF1_mode'] = silicon_retina_cuda.HPF_MODE(filtered['HPF1_mode'])
+        filtered['HPF2_mode'] = silicon_retina_cuda.HPF_MODE(filtered['HPF2_mode'])
+        filtered['blur1_mode'] = silicon_retina_cuda.BLUR_MODE(filtered['blur1_mode'])
+        filtered['blur2_mode'] = silicon_retina_cuda.BLUR_MODE(filtered['blur2_mode'])
         return cls(**filtered)
     
     def to_cpp_struct(self) -> silicon_retina_cuda.SiliconRetinaParams:

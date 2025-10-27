@@ -199,7 +199,10 @@ def render_events_video(
             
             elif show_outputs and overlay_outputs:
                 base_overlay_out = to_bgr_u8(out)
-                base_overlay_out[out != 0] = cv2.addWeighted(base[out != 0], 1.0 - alpha, base_overlay_out[out != 0], alpha, 0)
+                mask3 = (out != 0).any(axis=2, keepdims=True)   # (H, W, 1)
+                base_overlay_out = np.where(mask3, 
+                                            cv2.addWeighted(base, 1.0 - alpha, base_overlay_out, alpha, 0),
+                                            base_overlay_out)
                             
             bottom  = np.concatenate([base_overlay_out, flow_rgb, quiv], axis=1)
             grid = np.concatenate([top, bottom], axis=0)

@@ -337,7 +337,7 @@ class EventDatasetFromUpsampledSaliency(Dataset):
 if __name__ == "__main__":
     import tqdm
 
-    ds = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_small_subset_train"),
+    ds = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
                                            prediction_video_name="maps.mp4",
                                            preprocessing_params = {"num_bins":5},
                                             mode="event",

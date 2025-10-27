@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 from src.neural_network.networks.E2VIDModel import E2VIDModel
 from src.neural_network.networks.PerceptualLoss import PerceptualLoss
 from src.neural_network.dataloaders.ECOCODatasetWrapper import ECOCODatasetWrapper
-from src.neural_network.dataloaders.ECOCO_dataset_file_cached import ECOCO_dataset_file_cached
 from src.neural_network.dataloaders.reconstruction_utils import train_epoch, validate, save_checkpoint
 from src.neural_network.dataloaders.EventDatasetFromUpsampled import EventDatasetFromUpsampled
 
