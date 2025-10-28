@@ -45,14 +45,14 @@ def del_cache_of_folder(folder):
             os.remove(file)
     
 
-class SiliconRetinaEventDatasetFromUpsampled(Dataset):
+class SiliconRetinaEventDatasetFromUpsampledSaliency(Dataset):
 
     def __init__(self, directory,
                        prediction_video_name,
                        preprocessing_type : EventRepresentation = EventRepresentation.EVENTS,
                        preprocessing_params = {},
                        height=180,
-                       width=240,
+                       width=320,
                        config = SiliconRetinaConfig(),
                        force_recomputing=False,
                        input_framerate=200,
@@ -61,6 +61,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
                         limit=-1,
                         use_upsampled_from_OF=False,
                        grids_dtype=np.float16,
+                       save_xypt=False,
                        verbose : bool = False):
 
         self.verbose = verbose
@@ -69,6 +70,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         self.preprocessing_params = preprocessing_params
         self.use_upsampled_from_OF = use_upsampled_from_OF
         self.prediction_video_name = prediction_video_name
+        self.save_xypt = save_xypt
 
         self.height = height
         self.width = width
@@ -249,13 +251,17 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
         paths = self._mk_paths(folder)
         properties_dirty = False
+        
+        xypt_exits = True 
+        if self.save_xypt:
+            xypt_exits = (os.path.exists(paths['x'])
+                          and os.path.exists(paths['y'])
+                          and os.path.exists(paths['t'])
+                          and os.path.exists(paths['p']))
 
         have_cache = (os.path.exists(paths['grids'])
                       and os.path.exists(paths['outputs'])
-                      and os.path.exists(paths['x'])
-                      and os.path.exists(paths['y'])
-                      and os.path.exists(paths['t'])
-                      and os.path.exists(paths['p']))
+                      and xypt_exits)
         
         # check for valid cache : i.e. the silicon retina config matches
         if have_cache and "silicon_retina_config" in properties:
@@ -308,29 +314,28 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             # read outputs 
             outputs_np = _memmap_load(paths['outputs'])
 
-            x_np = _memmap_load(paths["x"])  # uint16
-            y_np = _memmap_load(paths["y"])  # uint16
-            t_np = _memmap_load(paths["t"])  # int64
-            p_np = _memmap_load(paths["p"])  # int8
-
-
             # zero-copy views into tensors on CPU: later moved to CUDA
-            grids_np = _memmap_load(paths['grids'])
-            event_grids = torch.from_numpy(grids_np)
-            event_grids = event_grids.clone()
-
-            events = {
-                "x": torch.as_tensor(x_np),
-                "y": torch.as_tensor(y_np),
-                "t": torch.as_tensor(t_np),
-                "p": torch.as_tensor(p_np),
-            }
+            grids_np = _memmap_load(paths['grids'])          # read-only memmap
+            grids_np = np.array(grids_np, copy=True)         # make it writable (single copy)
+            event_grids = torch.from_numpy(grids_np)         # no warning now
+                            
             result = {
                 "frames": np.array(frames_np['raw_images']).astype(np.float32) / 255.,  # keep as numpy (cheap, contiguous)
                 "outputs" : np.array(outputs_np),
-                "events": events,
                 "grids": event_grids,  # half precision on load
             }
+            if self.save_xypt:
+                x_np = _memmap_load(paths["x"])  # uint16
+                y_np = _memmap_load(paths["y"])  # uint16
+                t_np = _memmap_load(paths["t"])  # int64
+                p_np = _memmap_load(paths["p"])  # int8
+                events = {
+                    "x": torch.as_tensor(x_np),
+                    "y": torch.as_tensor(y_np),
+                    "t": torch.as_tensor(t_np),
+                    "p": torch.as_tensor(p_np),
+                }
+                result["events"] = events
 
             # optional: optical flow (unchanged from your logic)
             optical_flow_file = os.path.join(folder, "optical_flow.npz")
@@ -356,6 +361,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             if self.verbose:
                 print("read upsampled from OF")
         else:
+            print(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))
             frames = self._load_video_gray(os.path.join(folder, f"video_upsampled_fps_eq_{self.input_framerate}.mp4"))  # (N, H, W), uint8
             timestamps = np.asarray(properties["timestamps_FF"], dtype=np.float64)
             images = properties["new_images_per_pair_FF"]  # list of counts per segment
@@ -399,7 +405,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
             frames = frames.astype("float32") / 255.0 + 1e-4
         frames = torch.from_numpy(frames).to(self.device, non_blocking=True)
         timestamps_ns_t = torch.from_numpy(timestamps_ns).cpu()
-
+        
         # load the raw_frames
         raw_frames = np.load(os.path.join(folder, "raw_images.npz"))['raw_images'] / 255.
 
@@ -436,23 +442,27 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
         _save_cached_npy(paths["outputs"], outputs)
 
         # Compact events to smaller dtypes on disk
-        _save_cached_npy(paths["x"], x.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
-        _save_cached_npy(paths["y"], y.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
-        _save_cached_npy(paths["t"], t.detach().to("cpu").to(torch.int64).numpy())
-        _save_cached_npy(paths["p"], p.detach().to("cpu").to(torch.int8).numpy())
+        if self.save_xypt:
+            _save_cached_npy(paths["x"], x.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
+            _save_cached_npy(paths["y"], y.detach().to("cpu").to(torch.int32).numpy().astype(np.uint16))
+            _save_cached_npy(paths["t"], t.detach().to("cpu").to(torch.int64).numpy())
+            _save_cached_npy(paths["p"], p.detach().to("cpu").to(torch.int8).numpy())
 
         # Return in the same shapes/types you expect
         result = {
             "frames": raw_frames,                                 # np.uint8
             "outputs" : outputs,
-            "events": {
+            "grids": event_grids.to("cpu"),                       # torch.float32 -> we saved float16
+        }
+        
+        if self.save_xypt:
+            result["events"] = {
                 "x": x.to("cpu"),
                 "y": y.to("cpu"),
                 "t": t.to("cpu"),
                 "p": p.to("cpu"),
-            },
-            "grids": event_grids.to("cpu"),                       # torch.float32 -> we saved float16
-        }
+            }
+            
 
         optical_flow_file = os.path.join(folder, "optical_flow.npz")
         if os.path.exists(optical_flow_file):
@@ -507,7 +517,7 @@ if __name__ == "__main__":
 
     HW = cfg.H * cfg.W
 
-    ds = SiliconRetinaEventDatasetFromUpsampled(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
+    ds = SiliconRetinaEventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
                                                 prediction_video_name="outputs.npz",
                                                 preprocessing_type=EventRepresentation.EVENTS_TIME_PLUS_POS,
                                                 preprocessing_params={"c_ns": 0.25 * 0.005 * 1e9 / HW, "hashed_jitter":True,

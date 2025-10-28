@@ -33,11 +33,28 @@
       "redirectOutput": true
     },
     {
-      "name": "Saliency FireNetwork",
+      "name": "Saliency FireNetwork (Events)",
       "type": "debugpy",
       "args": [
         "-c",
         "src/neural_network/configs/FIREnetwork_event_saliency.json"
+      ],
+      "request": "launch",
+      "program": "${file}", // runs the currently open file
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}", // important: so your relative paths work
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}" // so 'esim_torch' and 'src.*' resolve
+      },
+      "justMyCode": false, // lets you step into your utils, etc.
+      "redirectOutput": true
+    },
+    {
+      "name": "Saliency FireNetwork (Retina)",
+      "type": "debugpy",
+      "args": [
+        "-c",
+        "src/neural_network/configs/FIREnetwork_retina_saliency.json"
       ],
       "request": "launch",
       "program": "${file}", // runs the currently open file

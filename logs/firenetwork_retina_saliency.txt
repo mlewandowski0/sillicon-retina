@@ -1,0 +1,49 @@
+nohup: ignoring input
+E2VID Training on ECOCO Dataset
+================================
+device:  cuda
+Model has 130785 parameters
+
+Configuration:
+  num_bins: 5
+  num_prev_images: 3
+  burn_in_steps: 10
+  sequence_length: 30
+  hid1: 32
+  ks1: 3
+  add_bn: False
+  out_mode: density
+  use_amp: True
+  amp_dtype: fp16
+  force_recomputing: False
+  log_input: False
+  data_root: src/neural_network/data/saliency_dataset_upsampled
+  cache_folder: src/neural_network/data/saliency_dataset_upsampled
+  train_limit: None
+  val_limit: None
+  skip_frames: 1
+  batch_size: 2
+  num_epochs: 200
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  lr_step_size: 10
+  lr_gamma: 0.9
+  prefetch_factor: 2
+  dropout_rate: 0.2
+  augment: True
+  skip_type: sum
+  debug_save: True
+  debug_iters: 500
+  debug_folder: src/neural_network/debug/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  use_lpips: True
+  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  save_every: 5
+  keep_last_n_checkpoints: 5
+  num_workers: 10
+  use_wandb: True
+  silicon_retina_config: {'W': 320, 'H': 180, 'alpha1': 0.5, 'alpha2': 0.5, 'V_BIP_LPF_alpha': 0.5, 'lambda_OPL': 3.0, 'G_A_zero': 0.5, 'lambda_A': 0.5, 'p1': 0.25, 'I_bias_on': 0.01, 'I_bias_off': 0.01, 'p2': 1.0, 'p3': 0.2, 'U_rest_on': -0.02, 'U_rest_off': -0.02, 'U_th_on': 0.05, 'U_th_off': 0.05, 'U_reset_on': 0.0, 'U_reset_off': 0.0, 'HPF1_mode': 0, 'HPF1_param': 0.5, 'HPF2_mode': 0, 'HPF2_param': 0.5, 'blur1_mode': 0, 'blur2_mode': 0, 'apply_log_to_input': False}
+  event_representation_class: 1
+  event_representation_params: {'num_bins': 5}
+  use_upsampled_from_OF: False
+  verbose: False
+  0%|          | 0/541 [00:00<?, ?it/s]  0%|          | 1/541 [00:00<05:14,  1.72it/s]  0%|          | 2/541 [00:01<04:51,  1.85it/s]  1%|          | 3/541 [00:01<05:02,  1.78it/s]  1%|          | 4/541 [00:02<05:18,  1.69it/s]  1%|          | 5/541 [00:02<05:29,  1.63it/s]  1%|          | 6/541 [00:03<05:34,  1.60it/s]  1%|▏         | 7/541 [00:03<04:34,  1.95it/s]  1%|▏         | 8/541 [00:04<05:07,  1.74it/s]  2%|▏         | 9/541 [00:05<05:55,  1.50it/s]  2%|▏         | 10/541 [00:05<05:12,  1.70it/s]  2%|▏         | 11/541 [00:06<04:56,  1.79it/s]  2%|▏         | 12/541 [00:06<04:57,  1.78it/s]  2%|▏         | 13/541 [00:18<33:32,  3.81s/it]  3%|▎         | 14/541 [00:28<49:41,  5.66s/it]  3%|▎         | 15/541 [00:37<58:47,  6.71s/it]  3%|▎         | 16/541 [00:43<58:02,  6.63s/it]  3%|▎         | 17/541 [00:49<54:34,  6.25s/it]  3%|▎         | 18/541 [00:59<1:04:40,  7.42s/it]  4%|▎         | 19/541 [01:02<52:28,  6.03s/it]    4%|▎         | 20/541 [01:07<49:45,  5.73s/it]  4%|▍         | 21/541 [01:15<55:57,  6.46s/it]  4%|▍         | 22/541 [01:22<57:50,  6.69s/it]  4%|▍         | 23/541 [01:31<1:04:14,  7.44s/it]  4%|▍         | 24/541 [01:37<59:14,  6.87s/it]    5%|▍         | 25/541 [01:43<57:37,  6.70s/it]  5%|▍         | 26/541 [01:53<1:06:56,  7.80s/it]  5%|▍         | 27/541 [02:03<1:10:51,  8.27s/it]  5%|▌         | 28/541 [02:08<1:03:33,  7.43s/it]  5%|▌         | 29/541 [02:15<1:01:19,  7.19s/it]  6%|▌         | 30/541 [02:22<1:00:40,  7.12s/it]  6%|▌         | 31/541 [02:26<51:53,  6.11s/it]    6%|▌         | 32/541 [02:34<56:46,  6.69s/it]  6%|▌         | 33/541 [02:37<48:55,  5.78s/it]  6%|▋         | 34/541 [02:46<57:32,  6.81s/it]  6%|▋         | 35/541 [02:56<1:03:32,  7.53s/it]  7%|▋         | 36/541 [03:01<58:37,  6.97s/it]    7%|▋         | 37/541 [03:11<1:06:16,  7.89s/it]  7%|▋         | 38/541 [03:21<1:09:39,  8.31s/it]  7%|▋         | 39/541 [03:26<1:01:32,  7.36s/it]  7%|▋         | 40/541 [03:40<1:17:45,  9.31s/it]  8%|▊         | 41/541 [03:45<1:06:52,  8.02s/it]  8%|▊         | 42/541 [03:54<1:09:31,  8.36s/it]  8%|▊         | 43/541 [04:00<1:04:01,  7.71s/it]  8%|▊         | 44/541 [04:05<56:25,  6.81s/it]    8%|▊         | 45/541 [04:10<52:19,  6.33s/it]  9%|▊         | 46/541 [04:18<55:31,  6.73s/it]  9%|▊         | 47/541 [04:26<58:22,  7.09s/it]  9%|▉         | 48/541 [04:34<1:02:19,  7.58s/it]  9%|▉         | 49/541 [04:43<1:05:41,  8.01s/it]  9%|▉         | 50/541 [04:53<1:09:31,  8.50s/it]
