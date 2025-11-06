@@ -49,7 +49,6 @@ class SaliencyDatasetWrapper(Dataset):
             # Flip polarity for horizontal flip
             #grids = grids * -1
 
-        print(frames.shape)
         # Random vertical flip
         if np.random.rand() > 0.5:
             frames = frames[ :, ::-1, :].copy()

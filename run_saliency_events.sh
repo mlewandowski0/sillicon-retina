@@ -1,1 +1,1 @@
-python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/FIREnetwork_retina_saliency.json
+nohup python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/FIREnetwork_event_saliency.json > logs/saliency_firenetwork_events.txt 2>&1 &
