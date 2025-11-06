@@ -44,5 +44,5 @@
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": true
+        "use_wandb": false
     }

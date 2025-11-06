@@ -100,7 +100,9 @@ class SaliencyDatasetWrapper(Dataset):
 
         grids = item['grids']  # (N-1, B, H, W)
         outputs = item['outputs']  # (N, H, W)
-        outputs = np.mean(outputs, axis=-1)  # Convert to grayscale if needed
+        
+        if outputs.ndim == 4 and outputs.shape[-1] == 3:
+            outputs = np.mean(outputs, axis=-1)  # Convert to grayscale if needed
         
         if 'optical_flows' in item:
             flows = item["optical_flows"] # (N-1, 2, H, W)
