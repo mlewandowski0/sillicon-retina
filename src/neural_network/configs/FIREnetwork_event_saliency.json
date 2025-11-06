@@ -18,8 +18,8 @@
 
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
-        "train_limit": null,
-        "val_limit": null,
+        "train_limit": 20,
+        "val_limit": 10,
         "skip_frames": 1,
 
         "batch_size": 2,
@@ -28,7 +28,7 @@
         "weight_decay": 1e-4,
         "lr_step_size": 10,
         "lr_gamma": 0.9,
-        "prefetch_factor" : 2,
+        "prefetch_factor" : 5,
         "dropout_rate" : 0.2,
         "augment" : true,
         "skip_type" : "sum",

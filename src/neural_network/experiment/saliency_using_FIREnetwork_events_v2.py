@@ -89,11 +89,12 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 
         with torch.amp.autocast(device_type, enabled=use_amp, dtype=amp_dtype):
             # warm-up
-            bi = min(burn_in_steps, L)
-            for t in range(bi):
-                if not valid[:, t].any(): 
-                    continue
-                _ = model(grids[:, t])
+            with torch.no_grad():
+                bi = min(burn_in_steps, L)
+                for t in range(bi):
+                    if not valid[:, t].any(): 
+                        continue
+                    _ = model(grids[:, t])
 
         # main pass
         for t in range(bi, L):
@@ -320,7 +321,7 @@ if __name__ == "__main__":
                                    preprocessing_params=event_representation_params,
                                    log_scale=log_input,
                                    force_recomputing=force_recomputing,
-                                   limit=config["train_limit"],
+                                   limit=config["val_limit"],
                                    verbose=verbose)
 
     val_dataset = SaliencyDatasetWrapper(val_base,

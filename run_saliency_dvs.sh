@@ -1,0 +1,1 @@
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/FIREnetwork_retina_saliency.json
