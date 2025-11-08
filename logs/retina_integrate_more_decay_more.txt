@@ -1,0 +1,1 @@
+./run_saliency_retina_job.sh: 2: python: not found
