@@ -184,19 +184,21 @@ def check_dataset_occupancy(ds, min_grid_occupancy=0.01, max_grid_occupancy=0.6,
 
 def validat_occupancy_dataset(ds, min_grid_occupancy=0.01, max_grid_occupancy=0.6, 
                          min_per_pixel_occupancy=0., max_per_pixel_occupancy=1.0,
-                         result_file="optuna_result.json"):    
+                         result_file="optuna_result.json",
+                         truncate=True):    
     
     valid, grids_occupancy, per_pixel_occupany = check_dataset_occupancy(ds, 
                                                                           min_grid_occupancy=min_grid_occupancy, 
                                                                           max_grid_occupancy=max_grid_occupancy,
                                                                           min_per_pixel_occupancy=min_per_pixel_occupancy,
                                                                           max_per_pixel_occupancy=max_per_pixel_occupancy)
-    if not valid:
-        print("The dataset is NOT valid! Exiting.")
-        write_optuna_result(result_file, best_value=-1, pixel_occupancy=per_pixel_occupany, grid_occupancy=grids_occupancy)
-        exit(1)
-    else:
-        print("The dataset is valid!")    
-        print(f"Val dataset - avg grids occupancy: {grids_occupancy*100:.4f} %, avg per pixel occupancy: {per_pixel_occupany*100:.4f} %")
+    if truncate:
+        if not valid:
+            print("The dataset is NOT valid! Exiting.")
+            write_optuna_result(result_file, best_value=-1, pixel_occupancy=per_pixel_occupany, grid_occupancy=grids_occupancy)
+            exit(1)
+        else:
+            print("The dataset is valid!")    
+            print(f"Val dataset - avg grids occupancy: {grids_occupancy*100:.4f} %, avg per pixel occupancy: {per_pixel_occupany*100:.4f} %")
 
     return valid, grids_occupancy, per_pixel_occupany

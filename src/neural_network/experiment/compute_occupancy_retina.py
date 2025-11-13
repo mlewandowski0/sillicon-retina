@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     # parameters for dataset checking
     min_grid_occupancy = config.get("min_grid_occupancy", 0.01)
-    max_grid_occupancy = config.get("max_grid_occupancy", 0.6)
+    max_grid_occupancy = config.get("max_grid_occupancy", 1.0)
     min_per_pixel_occupancy = config.get("min_per_pixel_occupancy", 0.0)
     max_per_pixel_occupancy = config.get("max_per_pixel_occupancy", 1.0) 
 
@@ -123,7 +123,8 @@ if __name__ == "__main__":
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
                                                                                 max_per_pixel_occupancy=max_per_pixel_occupancy,
-                                                                                result_file=result_file)
+                                                                                result_file=result_file,
+                                                                                truncate=False)
     
     
     # use train or validation for validation
@@ -147,7 +148,8 @@ if __name__ == "__main__":
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
                                                                                 max_per_pixel_occupancy=max_per_pixel_occupancy,
-                                                                                result_file=result_file)
+                                                                                result_file=result_file,
+                                                                                truncate=False)
 
 
     # compute average occupancy
@@ -163,6 +165,6 @@ if __name__ == "__main__":
     print(f"Occupancy val dataset: Grids occupancy: {grids_occupancy_val*100:.4f} %, Per pixel occupancy: {per_pixel_occupany_val*100:.4f} %")
     
     write_optuna_result(result_file, best_value=-1, 
-                        pixel_occupancy=per_pixel_occupany, grid_occupancy=grids_occupancy,
+                        total_pixel_occupancy=per_pixel_occupany, total_grid_occupancy=grids_occupancy,
                         val_pixel_occupancy = per_pixel_occupany_val, val_grid_occupancy = grids_occupancy_val,
                         train_pixel_occupancy = per_pixel_occupany_train, train_grid_occupancy= grids_occupancy_train)
