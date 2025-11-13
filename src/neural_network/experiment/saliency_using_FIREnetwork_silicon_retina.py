@@ -326,7 +326,7 @@ if __name__ == "__main__":
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
                                                                                 max_per_pixel_occupancy=max_per_pixel_occupancy,
                                                                                 result_file=result_file)
-    
+
 
     train_dataset = SaliencyDatasetWrapper(
         train_base,
@@ -365,14 +365,14 @@ if __name__ == "__main__":
                                                                                 max_per_pixel_occupancy=max_per_pixel_occupancy,
                                                                                 result_file=result_file)
 
-
-    # compute average occupancy
-    if check_dataset:
         total = len(train_base) + len(val_base)
         grids_occupancy = (grids_occupancy_train * len(train_base) + grids_occupancy_val * len(val_base)) / total
         per_pixel_occupany = (per_pixel_occupany_train * len(train_base) + per_pixel_occupany_val * len(val_base)) / total
         print(f"Average occupancy over train and val datasets: Grids occupancy: {grids_occupancy*100:.4f} %, Per pixel occupancy: {per_pixel_occupany*100:.4f} %")
-
+        
+        config["grids_occupancy"] = grids_occupancy
+        config["per_pixel_occupany"] = per_pixel_occupany
+        
 
 
     val_dataset = SaliencyDatasetWrapper(

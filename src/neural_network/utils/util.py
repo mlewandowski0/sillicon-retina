@@ -147,11 +147,17 @@ def statistic_from_grids(grids, eps=1e-6):
 
     return grids_occupancy, per_pixel_occupancy
 
-def write_optuna_result(json_path, best_value, pixel_occupancy, grid_occupancy):
+def write_optuna_result(json_path, best_value, total_pixel_occupancy, total_grid_occupancy,
+                        val_pixel_occupancy = -1, val_grid_occupancy = -1,
+                        train_pixel_occupancy = -1, train_grid_occupancy = -1):
     with open(json_path, "w") as f:
         json.dump({"best_value" : best_value,
-                   "pixel_occupancy" : pixel_occupancy,
-                   "grid_occupancy" : grid_occupancy}, f, indent=4)
+                   "total_pixel_occupancy" : total_pixel_occupancy,
+                   "total_grid_occupancy" : total_grid_occupancy,
+                   "val_pixel_occupancy" :  val_pixel_occupancy,
+                   "val_grid_occupancy" : val_grid_occupancy,
+                   "train_pixel_occupancy" : train_pixel_occupancy,
+                   "train_grid_occupancy" : train_grid_occupancy}, f, indent=4)
 
 def check_dataset_occupancy(ds, min_grid_occupancy=0.01, max_grid_occupancy=0.6, 
                          min_per_pixel_occupancy=0., max_per_pixel_occupancy=1.0):    
