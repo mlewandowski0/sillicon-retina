@@ -89,7 +89,7 @@ if __name__ == "__main__":
     log_input = config.get("log_input", False)
 
     # parameters for dataset checking
-    min_grid_occupancy = config.get("min_grid_occupancy", 0.01)
+    min_grid_occupancy = config.get("min_grid_occupancy", 0.00)
     max_grid_occupancy = config.get("max_grid_occupancy", 1.0)
     min_per_pixel_occupancy = config.get("min_per_pixel_occupancy", 0.0)
     max_per_pixel_occupancy = config.get("max_per_pixel_occupancy", 1.0) 
