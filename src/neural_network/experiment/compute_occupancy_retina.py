@@ -20,7 +20,7 @@ from src.neural_network.dataloaders.SiliconRetinaEventDatasetFromUpsampledSalien
 from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaFloatCUDAOnline
 from src.neural_network.dataloaders.Encodings import EventRepresentation
 from src.neural_network.utils.util import validat_occupancy_dataset
-
+from src.neural_network.utils.event_utils import render_events_video
 from torch.optim.lr_scheduler import StepLR
 
 def write_optuna_result(json_path, best_value, total_pixel_occupancy, total_grid_occupancy,
@@ -40,6 +40,8 @@ torch.backends.cudnn.benchmark = True
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("-c", "--config", required=True, help="path to json config file")
+    ap.add_argument("-o", "--out_dir", required=True, default="occupancy_results", help="output directory for visualizations")
+    ap.add_argument("-n", "--render-number", type=int, default=20, help="number of visualizations to render")
     args = ap.parse_args()
 
     config_file = args.config
@@ -51,6 +53,9 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device: ", device)
+    
+    out_dir = args.out_dir
+    how_many_visualizations = args.render_number
 
     INP = config.get("num_bins", 5)
     # get result file
@@ -126,6 +131,25 @@ if __name__ == "__main__":
                                                                                 result_file=result_file,
                                                                                 truncate=False)
     
+    os.makedirs(out_dir, exist_ok=True)
+    
+    for i in tqdm(range(how_many_visualizations)):
+        
+        datapoint = train_base[i]
+        print(datapoint.keys())
+        imgs, grids, outputs = datapoint["frames"], datapoint["grids"], datapoint['outputs']
+
+        optical_flow_on = False
+        if "optical_flows" in datapoint:
+            optical_flow = datapoint["optical_flows"]
+            optical_flow_on = True
+
+        # visualize a datapoint    
+        render_events_video(datapoint, output_path=os.path.join(out_dir, f"retina_vis_{i:03d}.mp4"),
+                            flows_on=optical_flow_on,
+                            invert_rgb=True,
+                            show_outputs=True,
+                            overlay_outputs = True)
     
     # use train or validation for validation
     val_on_train = config.get("val_on_train", False)

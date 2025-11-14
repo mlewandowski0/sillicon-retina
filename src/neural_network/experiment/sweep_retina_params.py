@@ -18,20 +18,25 @@ RESULT_DIR = Path("src/neural_network/configs/occupancy_sweeps/results/")
 # Module to call 
 OCCUPANCY_MODULE = "src.neural_network.experiment.compute_occupancy_retina"
 
+# visualization folder 
+RENDER_FOLDER = Path("src/neural_network/configs/occupancy_sweeps/visualizations")
+
+# visualizations per run 
+RENDER_NUMBER = 30
 
 PARAM_SWEEPS = {
-    # thresholds: tie ON/OFF inside the loop below if you like
-    "U_th_on": [0.02, 0.03, 0.05, 0.08, 0.12, 0.16],
-    # biases:
-    "I_bias_on": [1e-4, 5e-4, 1e-3, 5e-3, 1e-2],
-    # global gain-like thing:
-    "lambda_OPL": [0.5, 1.0, 2.0, 3.0, 4.0],
+    "p2": [0.1, 0.5, 1.0, 1.5, 2.0, 2.5],
+    "p3" : [0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
+    "lambda_OPL" : [2.0, 3.0, 4.0, 5.0],
+    "U_reset_on" : [0.01, 0.02, 0.03, 0.04, 0.05],
+    
 }
 
 # If you want to tie "ON" and "OFF" versions for some params:
 TIE_ON_OFF = {
     "U_th_on": "U_th_off",
     "I_bias_on": "I_bias_off",
+    "U_reset_on" : "U_reset_off"
 }
 
 # path to CSV with summary of sweeps 
@@ -42,14 +47,19 @@ def load_base_config():
         base_config = json.load(f)
     return base_config
 
-def run_single_config(cfg_path):
+def run_single_config(cfg_path, run_name):
     """
         Run : 
             python -m src.neural_network.experiment.compute_occupancy_retina -c cfg_path
     and return True/False depending on success.
     """
     
-    cmd = ['python', '-m', OCCUPANCY_MODULE, '-c', str(cfg_path)]
+    out_folder = RENDER_FOLDER / run_name
+    out_folder.mkdir(parents=True, exist_ok=True)
+    
+    cmd = ['python', '-m', OCCUPANCY_MODULE, '-c', str(cfg_path),
+           "-o", str(out_folder), 
+           "-n", str(RENDER_NUMBER)]
     print("Running : ", " ".join(cmd), flush=True)
     result = subprocess.run(cmd)
     
@@ -127,7 +137,8 @@ def main():
                 print(f"  Tied {tied_name} = {val}")
 
             # Give each run its own result file
-            result_file_name = f"result_{param_name}_{idx:03d}.json"
+            base_name = f"result_{param_name}_{idx:03d}"
+            result_file_name = f"{base_name}.json"
             result_path = RESULT_DIR / result_file_name
             cfg["result_file"] = str(result_path)
 
@@ -146,7 +157,7 @@ def main():
             print(f"  Result file: {result_path}")
 
             # Run the occupancy script as a separate process
-            ok = run_single_config(cfg_path)
+            ok = run_single_config(cfg_path, run_name=base_name)
             if not ok:
                 print("  -> Skipping result read because run failed.")
                 continue

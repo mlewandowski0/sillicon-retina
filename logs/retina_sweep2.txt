@@ -1,0 +1,59 @@
+nohup: ignoring input
+================================================================================
+Sweeping parameter: p2
+================================================================================
+
+[p2 sweep] idx=0, value=0.1
+  Config: src/neural_network/configs/occupancy_sweeps/configs/occ_p2_000.json
+  Result file: src/neural_network/configs/occupancy_sweeps/results/result_p2_000.json
+Running :  python -m src.neural_network.experiment.compute_occupancy_retina -c src/neural_network/configs/occupancy_sweeps/configs/occ_p2_000.json -o src/neural_network/configs/occupancy_sweeps/visualizations/result_p2_000 -n 30
+E2VID Training on ECOCO Dataset
+================================
+device:  cuda
+Model has 130785 parameters
+
+Configuration:
+  num_bins: 5
+  num_prev_images: 3
+  burn_in_steps: 10
+  sequence_length: 30
+  hid1: 32
+  ks1: 3
+  add_bn: False
+  out_mode: density
+  use_amp: True
+  amp_dtype: fp16
+  force_recomputing: False
+  log_input: False
+  wandb_prefix: FIRE_saliency_HPF2_mode=1
+  data_root: src/neural_network/data/saliency_dataset_upsampled
+  cache_folder: src/neural_network/data/saliency_dataset_upsampled
+  train_limit: 200
+  val_limit: 100
+  skip_frames: 1
+  batch_size: 2
+  num_epochs: 125
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  lr_step_size: 10
+  lr_gamma: 0.9
+  prefetch_factor: 4
+  dropout_rate: 0.2
+  augment: True
+  skip_type: sum
+  debug_save: True
+  debug_iters: 500
+  debug_folder: src/neural_network/debug/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  use_lpips: True
+  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  save_every: 5
+  keep_last_n_checkpoints: 5
+  num_workers: 8
+  use_wandb: False
+  silicon_retina_config: {'W': 320, 'H': 180, 'alpha1': 0.5, 'alpha2': 0.5, 'V_BIP_LPF_alpha': 0.5, 'lambda_OPL': 3.0, 'G_A_zero': 0.5, 'lambda_A': 0.5, 'p1': 0.25, 'I_bias_on': 0.01, 'I_bias_off': 0.01, 'p2': 0.1, 'p3': 0.2, 'U_rest_on': -0.05, 'U_rest_off': -0.05, 'U_th_on': 0.02, 'U_th_off': 0.02, 'U_reset_on': 0.04, 'U_reset_off': 0.04, 'HPF1_mode': 0, 'HPF1_param': 0.5, 'HPF2_mode': 1, 'HPF2_param': 0.5, 'blur1_mode': 0, 'blur2_mode': 0, 'apply_log_to_input': False, 'turn_off_feedback': True}
+  event_representation_class: 1
+  event_representation_params: {'num_bins': 5}
+  result_file: src/neural_network/configs/occupancy_sweeps/results/result_p2_000.json
+  use_upsampled_from_OF: False
+  verbose: False
+  0%|          | 0/200 [00:00<?, ?it/s]  0%|          | 1/200 [00:00<01:57,  1.69it/s]  1%|          | 2/200 [00:01<01:51,  1.77it/s]  2%|▏         | 3/200 [00:01<01:52,  1.74it/s]  2%|▏         | 4/200 [00:02<01:59,  1.64it/s]  2%|▎         | 5/200 [00:03<02:02,  1.59it/s]  3%|▎         | 6/200 [00:03<02:07,  1.52it/s]  4%|▎         | 7/200 [00:04<01:58,  1.63it/s]  4%|▍         | 8/200 [00:05<02:09,  1.48it/s]  4%|▍         | 9/200 [00:05<02:18,  1.38it/s]  5%|▌         | 10/200 [00:06<02:17,  1.39it/s]  6%|▌         | 11/200 [00:07<02:02,  1.54it/s]  6%|▌         | 12/200 [00:07<01:51,  1.69it/s]  6%|▋         | 13/200 [00:08<01:54,  1.63it/s]  7%|▋         | 14/200 [00:08<01:48,  1.71it/s]  8%|▊         | 15/200 [00:09<01:53,  1.62it/s]  8%|▊         | 16/200 [00:09<01:48,  1.70it/s]  8%|▊         | 17/200 [00:10<01:45,  1.73it/s]  9%|▉         | 18/200 [00:11<01:48,  1.68it/s] 10%|▉         | 19/200 [00:11<01:45,  1.71it/s] 10%|█         | 20/200 [00:12<01:44,  1.72it/s] 10%|█         | 21/200 [00:12<01:47,  1.67it/s] 11%|█         | 22/200 [00:13<01:36,  1.84it/s] 12%|█▏        | 23/200 [00:14<01:50,  1.61it/s] 12%|█▏        | 24/200 [00:14<01:54,  1.53it/s] 12%|█▎        | 25/200 [00:15<01:49,  1.59it/s] 13%|█▎        | 26/200 [00:16<02:01,  1.43it/s] 14%|█▎        | 27/200 [00:17<02:01,  1.43it/s] 14%|█▍        | 28/200 [00:17<01:47,  1.60it/s] 14%|█▍        | 29/200 [00:18<01:55,  1.48it/s] 15%|█▌        | 30/200 [00:18<01:48,  1.56it/s] 16%|█▌        | 31/200 [00:19<01:59,  1.42it/s] 16%|█▌        | 32/200 [00:20<02:01,  1.38it/s] 16%|█▋        | 33/200 [00:21<01:58,  1.40it/s] 17%|█▋        | 34/200 [00:21<02:03,  1.35it/s] 18%|█▊        | 35/200 [00:22<02:10,  1.27it/s] 18%|█▊        | 36/200 [00:23<02:13,  1.23it/s] 18%|█▊        | 37/200 [00:24<02:11,  1.24it/s] 19%|█▉        | 38/200 [00:25<02:20,  1.16it/s]

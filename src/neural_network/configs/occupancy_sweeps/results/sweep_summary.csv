@@ -1,0 +1,17 @@
+param,value,pixel_occupancy,grid_occupancy,result_file,config_file
+U_th_on,0.02,0.845106076388889,0.00103656814246602,src/neural_network/configs/occupancy_sweeps/results/result_U_th_on_000.json,src/neural_network/configs/occupancy_sweeps/configs/occ_U_th_on_000.json
+U_th_on,0.03,0.9897708333333336,0.01093612589157765,src/neural_network/configs/occupancy_sweeps/results/result_U_th_on_001.json,src/neural_network/configs/occupancy_sweeps/configs/occ_U_th_on_001.json
+U_th_on,0.05,0.9737891782407411,0.32396485982818035,src/neural_network/configs/occupancy_sweeps/results/result_U_th_on_002.json,src/neural_network/configs/occupancy_sweeps/configs/occ_U_th_on_002.json
+U_th_on,0.08,0.9451001157407408,0.20443463597505585,src/neural_network/configs/occupancy_sweeps/results/result_U_th_on_003.json,src/neural_network/configs/occupancy_sweeps/configs/occ_U_th_on_003.json
+U_th_on,0.12,0.9203774305555555,0.13091500136571058,src/neural_network/configs/occupancy_sweeps/results/result_U_th_on_004.json,src/neural_network/configs/occupancy_sweeps/configs/occ_U_th_on_004.json
+U_th_on,0.16,0.901016377314815,0.09099820093131084,src/neural_network/configs/occupancy_sweeps/results/result_U_th_on_005.json,src/neural_network/configs/occupancy_sweeps/configs/occ_U_th_on_005.json
+I_bias_on,0.0001,0.9346040509259258,0.16230860958369764,src/neural_network/configs/occupancy_sweeps/results/result_I_bias_on_000.json,src/neural_network/configs/occupancy_sweeps/configs/occ_I_bias_on_000.json
+I_bias_on,0.0005,0.9358216435185184,0.1659473382911986,src/neural_network/configs/occupancy_sweeps/results/result_I_bias_on_001.json,src/neural_network/configs/occupancy_sweeps/configs/occ_I_bias_on_001.json
+I_bias_on,0.001,0.937355497685185,0.17070924752788244,src/neural_network/configs/occupancy_sweeps/results/result_I_bias_on_002.json,src/neural_network/configs/occupancy_sweeps/configs/occ_I_bias_on_002.json
+I_bias_on,0.005,0.9505472800925927,0.21849164480617883,src/neural_network/configs/occupancy_sweeps/results/result_I_bias_on_003.json,src/neural_network/configs/occupancy_sweeps/configs/occ_I_bias_on_003.json
+I_bias_on,0.01,0.9737891782407411,0.32396485982818035,src/neural_network/configs/occupancy_sweeps/results/result_I_bias_on_004.json,src/neural_network/configs/occupancy_sweeps/configs/occ_I_bias_on_004.json
+lambda_OPL,0.5,0.8948106481481481,0.09890663377750054,src/neural_network/configs/occupancy_sweeps/results/result_lambda_OPL_000.json,src/neural_network/configs/occupancy_sweeps/configs/occ_lambda_OPL_000.json
+lambda_OPL,1.0,0.9346626157407409,0.18056735854847303,src/neural_network/configs/occupancy_sweeps/results/result_lambda_OPL_001.json,src/neural_network/configs/occupancy_sweeps/configs/occ_lambda_OPL_001.json
+lambda_OPL,2.0,0.963095775462963,0.2723374856392442,src/neural_network/configs/occupancy_sweeps/results/result_lambda_OPL_002.json,src/neural_network/configs/occupancy_sweeps/configs/occ_lambda_OPL_002.json
+lambda_OPL,3.0,0.9737891782407411,0.32396485982818035,src/neural_network/configs/occupancy_sweeps/results/result_lambda_OPL_003.json,src/neural_network/configs/occupancy_sweeps/configs/occ_lambda_OPL_003.json
+lambda_OPL,4.0,0.9795515046296295,0.3580091790084496,src/neural_network/configs/occupancy_sweeps/results/result_lambda_OPL_004.json,src/neural_network/configs/occupancy_sweeps/configs/occ_lambda_OPL_004.json
