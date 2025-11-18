@@ -443,7 +443,7 @@ if __name__ == "__main__":
     use_wandb = config.get("use_wandb", False)
     config["use_wandb"] = use_wandb
     
-    wandb_project_name = config.get("wandb_project_name", "e2vid-saliency")
+    wandb_project_name = config.get("wandb_project_name", "e2vid-saliency2")
     config["wandb_project_name"] = wandb_project_name
     
     wandb_prefix = config.get("wandb_prefix", "FIREnetwork")

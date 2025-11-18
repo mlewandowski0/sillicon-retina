@@ -278,7 +278,7 @@ if __name__ == "__main__":
     force_recomputing = config.get("force_recomputing", False)
     config["force_recomputing"] = force_recomputing
 
-    log_input = config.get("log_input", False)
+    log_input = config.get("log_input", True)
     config["log_input"] = log_input
 
     skip_frames = config.get("skip_frames", False)
@@ -396,7 +396,7 @@ if __name__ == "__main__":
     config["use_wandb"] = use_wandb
     if config.get('use_wandb', False):
         wandb.init(
-            project="e2vid-saliency",
+            project="e2vid-saliency2",
             config=config,
             name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )

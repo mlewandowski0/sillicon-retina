@@ -14,7 +14,7 @@
         "amp_dtype" : "fp16",
 
         "force_recomputing" : false,
-        "log_input" : false,
+        "log_input" : true,
 
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
