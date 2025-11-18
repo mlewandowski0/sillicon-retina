@@ -100,15 +100,15 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 
         # main pass
         for t in range(bi, L):
-            if not valid[:, t].any():
-                continue
-
             x_t  = grids[:, t]      # (B, C, H, W)
             Igt_t = frames[:, t]    # (B, 1, H, W)
 
             # forward under autocast
             with torch.amp.autocast(device_type, enabled=use_amp, dtype=amp_dtype):
                 Ihat_t = model(x_t)
+
+            if not valid[:, t].any():
+                continue
 
             # loss in fp32 (outside autocast)
             step_loss, kl_loss, cc_loss = saliency_loss(Ihat_t, Igt_t)
@@ -210,14 +210,14 @@ def validate(model, loader, device, epoch, config, saliency_loss):
             _ = model(grids[:, t])
 
         for t in range(bi, L):
-            if not valid[:, t].any():
-                continue
 
             x_t = grids[:, t]
             Igt_t = frames[:, t]
             
             Ihat_t = model(x_t)
 
+            if not valid[:, t].any():
+                continue
 
             loss_sample, _, _ = saliency_loss(Ihat_t, Igt_t)
             loss += loss_sample
@@ -379,7 +379,7 @@ if __name__ == "__main__":
         val_base,
         sequence_length=config['sequence_length'],
         skip_frames=skip_frames,
-        augment=config["augment"]
+        augment=False
     )
 
     train_loader = DataLoader(

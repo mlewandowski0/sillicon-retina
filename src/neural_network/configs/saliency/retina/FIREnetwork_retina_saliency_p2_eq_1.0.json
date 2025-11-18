@@ -7,7 +7,7 @@
 
         "hid1" : 32,
         "ks1" : 3,
-        "add_bn" : false,
+        "add_bn" : true,
         "out_mode" : "density",
 
         "use_amp" : true,
