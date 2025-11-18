@@ -1,49 +1,0 @@
-E2VID Training on ECOCO Dataset
-================================
-device:  cuda
-Model has 130785 parameters
-
-Configuration:
-  num_bins: 5
-  num_prev_images: 3
-  burn_in_steps: 10
-  sequence_length: 30
-  hid1: 32
-  ks1: 3
-  add_bn: False
-  out_mode: density
-  use_amp: True
-  amp_dtype: fp16
-  force_recomputing: False
-  log_input: False
-  wandb_prefix: FIRE_saliency_no_feedback
-  data_root: src/neural_network/data/saliency_dataset_upsampled
-  cache_folder: src/neural_network/data/saliency_dataset_upsampled
-  train_limit: None
-  val_limit: 100
-  skip_frames: 1
-  batch_size: 2
-  num_epochs: 125
-  learning_rate: 0.0001
-  weight_decay: 0.0001
-  lr_step_size: 10
-  lr_gamma: 0.9
-  prefetch_factor: 4
-  dropout_rate: 0.2
-  augment: True
-  skip_type: sum
-  debug_save: True
-  debug_iters: 500
-  debug_folder: src/neural_network/debug/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
-  use_lpips: True
-  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
-  save_every: 5
-  keep_last_n_checkpoints: 5
-  num_workers: 8
-  use_wandb: True
-  silicon_retina_config: {'W': 320, 'H': 180, 'alpha1': 0.5, 'alpha2': 0.5, 'V_BIP_LPF_alpha': 0.5, 'lambda_OPL': 3.0, 'G_A_zero': 0.5, 'lambda_A': 0.5, 'p1': 0.25, 'I_bias_on': 0.01, 'I_bias_off': 0.01, 'p2': 1.0, 'p3': 0.2, 'U_rest_on': -0.02, 'U_rest_off': -0.02, 'U_th_on': 0.05, 'U_th_off': 0.05, 'U_reset_on': 0.0, 'U_reset_off': 0.0, 'HPF1_mode': 0, 'HPF1_param': 0.5, 'HPF2_mode': 0, 'HPF2_param': 0.5, 'blur1_mode': 0, 'blur2_mode': 0, 'apply_log_to_input': False, 'turn_off_feedback': True}
-  event_representation_class: 1
-  event_representation_params: {'num_bins': 5}
-  use_upsampled_from_OF: False
-  verbose: False
-  0%|          | 0/541 [00:00<?, ?it/s]  0%|          | 1/541 [00:00<04:04,  2.21it/s]  0%|          | 2/541 [00:00<03:49,  2.34it/s]  1%|          | 3/541 [00:01<03:56,  2.28it/s]  1%|          | 4/541 [00:01<04:07,  2.17it/s]  1%|          | 5/541 [00:02<04:15,  2.09it/s]  1%|          | 6/541 [00:02<04:19,  2.06it/s]  1%|▏         | 7/541 [00:03<03:33,  2.51it/s]  1%|▏         | 8/541 [00:03<03:57,  2.24it/s]  2%|▏         | 9/541 [00:12<26:12,  2.96s/it]  2%|▏         | 10/541 [00:18<36:54,  4.17s/it]  2%|▏         | 11/541 [00:23<38:33,  4.36s/it]  2%|▏         | 12/541 [00:30<46:07,  5.23s/it]  2%|▏         | 13/541 [00:39<55:59,  6.36s/it]  3%|▎         | 14/541 [00:48<1:00:58,  6.94s/it]  3%|▎         | 15/541 [00:55<1:02:00,  7.07s/it]  3%|▎         | 16/541 [01:02<1:02:13,  7.11s/it]  3%|▎         | 17/541 [01:09<1:01:17,  7.02s/it]  3%|▎         | 18/541 [01:20<1:11:56,  8.25s/it]  4%|▎         | 19/541 [01:24<1:00:21,  6.94s/it]  4%|▎         | 20/541 [01:30<56:34,  6.52s/it]    4%|▍         | 21/541 [01:39<1:03:51,  7.37s/it]  4%|▍         | 22/541 [01:48<1:07:51,  7.84s/it]  4%|▍         | 23/541 [01:59<1:16:10,  8.82s/it]  4%|▍         | 24/541 [02:08<1:15:10,  8.72s/it]  5%|▍         | 25/541 [02:15<1:11:58,  8.37s/it]  5%|▍         | 26/541 [02:25<1:16:23,  8.90s/it]  5%|▍         | 27/541 [02:33<1:13:47,  8.61s/it]  5%|▌         | 28/541 [02:41<1:12:09,  8.44s/it]  5%|▌         | 29/541 [02:50<1:11:47,  8.41s/it]  6%|▌         | 30/541 [02:59<1:15:10,  8.83s/it]  6%|▌         | 31/541 [03:03<1:02:25,  7.34s/it]  6%|▌         | 32/541 [03:11<1:03:01,  7.43s/it]  6%|▌         | 33/541 [03:16<57:49,  6.83s/it]    6%|▋         | 34/541 [03:25<1:03:32,  7.52s/it]  6%|▋         | 35/541 [03:34<1:06:47,  7.92s/it]  7%|▋         | 36/541 [03:43<1:07:51,  8.06s/it]Killed

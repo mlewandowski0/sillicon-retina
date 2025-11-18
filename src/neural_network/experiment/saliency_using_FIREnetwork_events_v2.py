@@ -17,6 +17,7 @@ from src.neural_network.networks.SaliencyLoss import SaliencyLoss
 from src.neural_network.dataloaders.SaliencyDatasetWrapper import SaliencyDatasetWrapper
 from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint  
 from src.neural_network.dataloaders.EventDatasetFromUpsampledSaliency import EventDatasetFromUpsampledSaliency
+from src.neural_network.utils.util import validate_occupancy_dataset
 
 from torch.optim.lr_scheduler import StepLR
 
@@ -250,15 +251,6 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device: ", device)
 
-    use_wandb = config.get("use_wandb", False)
-    config["use_wandb"] = use_wandb
-    if config.get('use_wandb', False):
-        wandb.init(
-            project="e2vid-saliency",
-            config=config,
-            name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
-
     INP = config.get("num_bins", 5)
     config["num_bins"] = INP
 
@@ -295,13 +287,14 @@ if __name__ == "__main__":
     use_lpips = config.get('use_lpips', False)
     config["use_lpips"] = use_lpips
 
-    # print configuration
-    print("\nConfiguration:")
-    for key, value in config.items():
-        print(f"  {key}: {value}")
+    # parameters for dataset checking
+    check_dataset = config.get("check_dataset", True)
+    min_grid_occupancy = config.get("min_grid_occupancy", 0.001)
+    max_grid_occupancy = config.get("max_grid_occupancy", 0.6)
+    min_per_pixel_occupancy = config.get("min_per_pixel_occupancy", 0.0)
+    max_per_pixel_occupancy = config.get("max_per_pixel_occupancy", 1.0) 
 
-
-    train_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
+    train_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_ready", "train"),
                                    mode="event",
                                    prediction_video_name="outputs.npz",
                                    preprocessing_params=event_representation_params,
@@ -315,7 +308,7 @@ if __name__ == "__main__":
                                            skip_frames=config.get('skip_frames', 1),
                                            augment=config["augment"])
 
-    val_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_upsampled"),
+    val_base = EventDatasetFromUpsampledSaliency(directory=os.path.join("src", "neural_network", "data", "saliency_dataset_ready", "val"),
                                    mode="event",
                                    prediction_video_name="outputs.npz",
                                    preprocessing_params=event_representation_params,
@@ -363,10 +356,56 @@ if __name__ == "__main__":
         prof.__enter__()
     else:
         prof = None
+        
 
     print(f"Train dataset: {len(train_dataset)} sequences")
     print(f"Val dataset: {len(val_dataset)} sequences")
 
+    # get result file
+    result_file = config.get("result_file", "result.json")
+
+    # check dataset if needed 
+    if check_dataset:
+        valid, grids_occupancy_train, per_pixel_occupany_train = validate_occupancy_dataset(train_base, 
+                                                                                min_grid_occupancy=min_grid_occupancy, 
+                                                                                max_grid_occupancy=max_grid_occupancy,
+                                                                                min_per_pixel_occupancy=min_per_pixel_occupancy,
+                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy,
+                                                                                result_file=result_file)
+
+
+    # check dataset if needed 
+    if check_dataset:
+        valid, grids_occupancy_val, per_pixel_occupany_val = validate_occupancy_dataset(val_base, 
+                                                                                min_grid_occupancy=min_grid_occupancy, 
+                                                                                max_grid_occupancy=max_grid_occupancy,
+                                                                                min_per_pixel_occupancy=min_per_pixel_occupancy,
+                                                                                max_per_pixel_occupancy=max_per_pixel_occupancy,
+                                                                                result_file=result_file)
+
+        total = len(train_base) + len(val_base)
+        grids_occupancy = (grids_occupancy_train * len(train_base) + grids_occupancy_val * len(val_base)) / total
+        per_pixel_occupany = (per_pixel_occupany_train * len(train_base) + per_pixel_occupany_val * len(val_base)) / total
+        print(f"Average occupancy over train and val datasets: Grids occupancy: {grids_occupancy*100:.4f} %, Per pixel occupancy: {per_pixel_occupany*100:.4f} %")
+        
+        config["grids_occupancy"] = grids_occupancy
+        config["per_pixel_occupany"] = per_pixel_occupany
+    
+    
+    use_wandb = config.get("use_wandb", False)
+    config["use_wandb"] = use_wandb
+    if config.get('use_wandb', False):
+        wandb.init(
+            project="e2vid-saliency",
+            config=config,
+            name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        
+    # print configuration
+    print("\nConfiguration:")
+    for key, value in config.items():
+        print(f"  {key}: {value}")
+    
     # Losses and optimizer
     loss_func = SaliencyLoss(eps=1e-4)
 

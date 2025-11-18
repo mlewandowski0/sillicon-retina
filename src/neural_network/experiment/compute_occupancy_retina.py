@@ -19,7 +19,7 @@ from src.neural_network.dataloaders.reconstruction_utils import save_checkpoint
 from src.neural_network.dataloaders.SiliconRetinaEventDatasetFromUpsampledSaliency import SiliconRetinaEventDatasetFromUpsampledSaliency 
 from esim_torch.silicon_retina_torch import SiliconRetinaConfig,SiliconRetinaFloatCUDAOnline
 from src.neural_network.dataloaders.Encodings import EventRepresentation
-from src.neural_network.utils.util import validat_occupancy_dataset
+from src.neural_network.utils.util import validate_occupancy_dataset
 from src.neural_network.utils.event_utils import render_events_video
 from torch.optim.lr_scheduler import StepLR
 
@@ -123,7 +123,7 @@ if __name__ == "__main__":
                                                                 use_upsampled_from_OF=use_upsampled_from_OF,
                                                                 verbose=verbose)
     # compute the occupancy of the training dataset 
-    valid, grids_occupancy_train, per_pixel_occupany_train = validat_occupancy_dataset(train_base, 
+    valid, grids_occupancy_train, per_pixel_occupany_train = validate_occupancy_dataset(train_base, 
                                                                                 min_grid_occupancy=min_grid_occupancy, 
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
@@ -167,7 +167,7 @@ if __name__ == "__main__":
                                                                 verbose=verbose)
 
     # compute the occupancy of the validation dataset 
-    valid, grids_occupancy_val, per_pixel_occupany_val = validat_occupancy_dataset(val_base, 
+    valid, grids_occupancy_val, per_pixel_occupany_val = validate_occupancy_dataset(val_base, 
                                                                                 min_grid_occupancy=min_grid_occupancy, 
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,

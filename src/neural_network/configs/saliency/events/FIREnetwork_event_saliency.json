@@ -19,8 +19,9 @@
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
         "train_limit": null,
-        "val_limit": 100,
+        "val_limit": null,
         "skip_frames": 1,
+        "check_dataset" : true,
 
         "batch_size": 2,
         "num_epochs": 200,
@@ -44,5 +45,9 @@
         "keep_last_n_checkpoints": 5,
 
         "num_workers": 10,
-        "use_wandb": true
+        "use_wandb": true,
+        "event_representation_params" : {
+            "contrast_threshold_neg" : 0.2,
+            "contrast_threshold_pos" : 0.2
+        }
     }

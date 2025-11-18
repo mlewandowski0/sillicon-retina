@@ -182,7 +182,7 @@ def check_dataset_occupancy(ds, min_grid_occupancy=0.01, max_grid_occupancy=0.6,
     avg_per_pixel_occupancy /= len(ds)
     return True, avg_grid_occupancy, avg_per_pixel_occupancy
 
-def validat_occupancy_dataset(ds, min_grid_occupancy=0.01, max_grid_occupancy=0.6, 
+def validate_occupancy_dataset(ds, min_grid_occupancy=0.005, max_grid_occupancy=0.6, 
                          min_per_pixel_occupancy=0., max_per_pixel_occupancy=1.0,
                          result_file="optuna_result.json",
                          truncate=True):    
