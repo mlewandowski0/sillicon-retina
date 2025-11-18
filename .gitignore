@@ -25,3 +25,5 @@ dataset_packed.zip
 small_batch.zip
 visualizations.zip
 to_cluster.zip
+
+src/neural_network/configs/occupancy_sweeps/visualizations

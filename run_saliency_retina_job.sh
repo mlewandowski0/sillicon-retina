@@ -1,2 +1,0 @@
-python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency_sweeps/FIREnetwork_retina_saliency3.json > logs/retina_no_feedback.txt 2>&1
-python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency_sweeps/FIREnetwork_retina_saliency4.json > logs/retina_integrate_more_decay_more.txt 2>&1

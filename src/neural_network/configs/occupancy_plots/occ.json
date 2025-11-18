@@ -75,7 +75,7 @@
         "blur1_mode" : 0,
         "blur2_mode" : 0,
         "apply_log_to_input": false,
-        "turn_off_feedback" : true
+        "turn_off_feedback" : false
         },
         "event_representation_class": 1,
         "event_representation_params": {

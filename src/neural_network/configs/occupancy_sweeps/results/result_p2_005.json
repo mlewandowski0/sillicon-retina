@@ -1,0 +1,9 @@
+{
+    "best_value": -1,
+    "total_pixel_occupancy": 0.9895900462962963,
+    "total_grid_occupancy": 0.6959941547275491,
+    "val_pixel_occupancy": 0.9918590277777776,
+    "val_grid_occupancy": 0.6983557855242573,
+    "train_pixel_occupancy": 0.9884555555555556,
+    "train_grid_occupancy": 0.6948133393291951
+}

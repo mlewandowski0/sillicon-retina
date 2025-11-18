@@ -25,11 +25,7 @@ RENDER_FOLDER = Path("src/neural_network/configs/occupancy_sweeps/visualizations
 RENDER_NUMBER = 30
 
 PARAM_SWEEPS = {
-    "p2": [0.1, 0.5, 1.0, 1.5, 2.0, 2.5],
-    "p3" : [0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
-    "lambda_OPL" : [2.0, 3.0, 4.0, 5.0],
-    "U_reset_on" : [0.01, 0.02, 0.03, 0.04, 0.05],
-    
+    "p2": [1.25, 1.5],
 }
 
 # If you want to tie "ON" and "OFF" versions for some params:
@@ -137,7 +133,7 @@ def main():
                 print(f"  Tied {tied_name} = {val}")
 
             # Give each run its own result file
-            base_name = f"result_{param_name}_{idx:03d}"
+            base_name = f"result_{param_name}={val}"
             result_file_name = f"{base_name}.json"
             result_path = RESULT_DIR / result_file_name
             cfg["result_file"] = str(result_path)
@@ -147,7 +143,7 @@ def main():
                 cfg["use_wandb"] = False
 
             # Write this config to disk
-            cfg_name = f"occ_{param_name}_{idx:03d}.json"
+            cfg_name = f"occ_{param_name}={val}.json"
             cfg_path = SWEEP_CONFIG_DIR / cfg_name
             with open(cfg_path, "w") as f:
                 json.dump(cfg, f, indent=4)
@@ -197,7 +193,12 @@ def main():
 
     # Optionally save to CSV
     if CSV_SUMMARY_PATH is not None:
-        with open(CSV_SUMMARY_PATH, "w", newline="") as f:
+
+        file_exists = os.path.isfile(CSV_SUMMARY_PATH)
+    
+        mode = 'a' if file_exists else 'w'
+    
+        with open(CSV_SUMMARY_PATH, mode, newline="") as f:
             writer = csv.DictWriter(
                 f,
                 fieldnames=[
@@ -209,7 +210,10 @@ def main():
                     "config_file",
                 ],
             )
-            writer.writeheader()
+            
+            if not file_exists:
+                writer.writeheader()
+    
             for rec in all_records:
                 writer.writerow(rec)
 
