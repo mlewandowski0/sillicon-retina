@@ -7,7 +7,7 @@
 
         "hid1" : 32,
         "ks1" : 3,
-        "add_bn" : false,
+        "add_bn" : true,
         "out_mode" : "density",
 
         "use_amp" : true,
@@ -16,12 +16,12 @@
         "force_recomputing" : false,
         "log_input" : false,
 
-        "wandb_prefix" : "FIRE_saliency_HPF2_mode=1",
+        "wandb_prefix" : "FIRE_saliency_p2=1.0",
  
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
-        "train_limit": 200,
-        "val_limit": 100,
+        "train_limit": null,
+        "val_limit": null,
         "skip_frames": 1,
 
         "batch_size": 2,
@@ -34,6 +34,7 @@
         "dropout_rate" : 0.2,
         "augment" : true,
         "skip_type" : "sum",
+        "check_dataset" : true,
 
         "debug_save" : true,
         "debug_iters" : 500,
@@ -83,7 +84,7 @@
         "kernel2_sigma" : 1.0,
 
         "apply_log_to_input": false,
-        "turn_off_feedback" : false
+        "turn_off_feedback" : true
         },
         "event_representation_class": 1,
         "event_representation_params": {

@@ -1,0 +1,2 @@
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency/retina/FIREnetwork_retina_saliency_no_feedback_larger_reset2.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency/retina/FIREnetwork_retina_saliency_no_feedback_larger_reset.json
