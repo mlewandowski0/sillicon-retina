@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <cmath>
+#include <vector>
 
 enum class HPF_MODE 
 {
@@ -13,6 +15,14 @@ enum class BLUR_MODE
     BLUR_AVG  = 0,
     BLUR_MAX  = 1,
     BLUR_NONE = 2   
+};
+
+enum class KERNEL_TYPE 
+{
+    BOX = 0,
+    GAUSSIAN = 1,
+    LAPLACIAN = 2,
+    CUSTOM = 3
 };
 
 enum LPF_MODE
@@ -29,6 +39,36 @@ enum LIF_RESET_MODE
 {
     LIF_SUBTRACT_RESET
 };
+
+inline std::vector<float> generate_gaussian_kernel(int size, float sigma)
+{
+    std::vector<float> kernel(size * size);
+    float sum = 0.0f;
+    int half = size / 2;
+
+    float denom = 2.0f * sigma * sigma;
+
+    for (int y = 0; y < size; ++y)
+    {
+        for (int x = 0; x < size; ++x)
+        {
+            int dx = x - half;
+            int dy = y - half;
+
+            float value = std::exp(-(dx*dx + dy*dy) / (denom));
+            kernel[y * size + x] = value;
+            sum += value;
+        }
+    }
+
+    // normalize 
+    for (auto &val : kernel)
+    {
+        val /= sum;
+    }
+
+    return kernel;
+}
 
 struct SiliconRetinaParams 
 {
@@ -69,6 +109,18 @@ struct SiliconRetinaParams
 
     BLUR_MODE blur1_mode = BLUR_MODE::BLUR_AVG;
     BLUR_MODE blur2_mode = BLUR_MODE::BLUR_AVG;
+
+    // New kernel configuration
+    KERNEL_TYPE kernel1_type = KERNEL_TYPE::BOX;
+    KERNEL_TYPE kernel2_type = KERNEL_TYPE::BOX;
+    int kernel1_size = 3;  // Must be odd: 3, 5, 7, 9, etc.
+    int kernel2_size = 3;
+    float kernel1_sigma = 1.0f;  // For Gaussian kernels
+    float kernel2_sigma = 1.0f;
+    
+    // For custom kernels - populated from Python
+    std::vector<float> custom_kernel1;
+    std::vector<float> custom_kernel2;
 
     SiliconRetinaParams(int H = 256,
                         int W = 256,
@@ -130,20 +182,24 @@ struct SiliconRetinaParams
         this->turn_off_feedback = turn_off_feedback;
     }
 
-
-    // Nice to have for debugging
     std::string repr() const {
-        char buf[2048];
+        char buf[4096];
         std::snprintf(buf, sizeof(buf),
             "SiliconRetinaParams(H=%d, W=%d, alpha1=%.6g, alpha2=%.6g, "
             "V_BIP_LPF_alpha=%.6g, lambda_OPL=%.6g, G_A_zero=%.6g, lambda_A=%.6g, "
             "p1=%.6g, I_bias_on=%.6g, I_bias_off=%.6g, p2=%.6g, p3=%.6g, "
             "U_rest_on=%.6g, U_rest_off=%.6g, U_th_on=%.6g, U_th_off=%.6g, "
             "U_reset_on=%.6g, U_reset_off=%.6g, HPF1_mode=%d, HPF1_param=%.6g, "
-            "HPF2_mode=%d, HPF2_param=%.6g, BLUR_MODE1=%d, BLUR_MODE2=%d, apply_log_to_input=%d, turn_off_feedback=%d)",
+            "HPF2_mode=%d, HPF2_param=%.6g, BLUR_MODE1=%d, BLUR_MODE2=%d, "
+            "KERNEL1_TYPE=%d, KERNEL2_TYPE=%d, kernel1_size=%d, kernel2_size=%d, "
+            "kernel1_sigma=%.6g, kernel2_sigma=%.6g, "
+            "apply_log_to_input=%d, turn_off_feedback=%d)",
             H, W, alpha1, alpha2, V_BIP_LPF_alpha, lambda_OPL, G_A_zero, lambda_A,
             p1, I_bias_on, I_bias_off, p2, p3, U_rest_on, U_rest_off, U_th_on, U_th_off,
-            U_reset_on, U_reset_off, (int)HPF1_mode, HPF1_param, (int)HPF2_mode, HPF2_param, (int)blur1_mode, (int)blur2_mode, (int)apply_log_to_input, (int) turn_off_feedback);
+            U_reset_on, U_reset_off, (int)HPF1_mode, HPF1_param, (int)HPF2_mode, HPF2_param, 
+            (int)blur1_mode, (int)blur2_mode, (int)kernel1_type, (int)kernel2_type,
+            kernel1_size, kernel2_size, kernel1_sigma, kernel2_sigma,
+            (int)apply_log_to_input, (int)turn_off_feedback);
         return std::string(buf);
     }
 };

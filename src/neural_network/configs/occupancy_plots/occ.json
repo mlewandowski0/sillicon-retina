@@ -74,6 +74,14 @@
         "HPF2_param": 0.5,
         "blur1_mode" : 0,
         "blur2_mode" : 0,
+        "kernel1_type" : 0,
+        "kernel1_size" : 5,
+        "kernel1_sigma" : 1.0,
+
+        "kernel2_type" : 0,
+        "kernel2_size" : 5,
+        "kernel2_sigma" : 1.0,
+
         "apply_log_to_input": false,
         "turn_off_feedback" : false
         },

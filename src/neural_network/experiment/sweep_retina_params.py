@@ -25,7 +25,7 @@ RENDER_FOLDER = Path("src/neural_network/configs/occupancy_sweeps/visualizations
 RENDER_NUMBER = 30
 
 PARAM_SWEEPS = {
-    "p2": [1.25, 1.5],
+    "kernel1_size": [3],
 }
 
 # If you want to tie "ON" and "OFF" versions for some params:

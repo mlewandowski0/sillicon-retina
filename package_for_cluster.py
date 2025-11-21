@@ -17,8 +17,10 @@ DEFAULT_EXCLUDED_EXTS = {
 
 DEFAULT_EXCLUDED_DIRS = {
     ".git", ".hg", ".svn", ".idea", ".vscode",
+    ".venv", ".vs",
     "__pycache__", ".mypy_cache", ".pytest_cache",
-    ".ipynb_checkpoints", "build", "dist", "venv", ".venv", "data", "logs"
+    ".ipynb_checkpoints", "build", "dist", "venv", ".venv", "data", "logs",
+    "bin", "models"
 }
 
 def should_skip_file(p: Path, excluded_exts: set[str]) -> bool:

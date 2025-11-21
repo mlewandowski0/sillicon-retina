@@ -1,7 +1,2 @@
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-pip install wandb tqdm
-pip install lpips pandas
-pip install -U scikit-image
-pip install -U matplotlib
-pip install opencv-python
-pip install imageio-ffmpeg
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+pip install wandb tqdm lpips pandas scikit-image matplotlib opencv-python imageio-ffmpeg
