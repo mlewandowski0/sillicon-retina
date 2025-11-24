@@ -325,7 +325,8 @@ if __name__ == "__main__":
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
                                                                                 max_per_pixel_occupancy=max_per_pixel_occupancy,
-                                                                                result_file=result_file)
+                                                                                result_file=result_file,
+                                                                                write_optuna=True)
 
 
     train_dataset = SaliencyDatasetWrapper(
@@ -363,7 +364,8 @@ if __name__ == "__main__":
                                                                                 max_grid_occupancy=max_grid_occupancy,
                                                                                 min_per_pixel_occupancy=min_per_pixel_occupancy,
                                                                                 max_per_pixel_occupancy=max_per_pixel_occupancy,
-                                                                                result_file=result_file)
+                                                                                result_file=result_file,
+                                                                                write_optuna=True)
 
         total = len(train_base) + len(val_base)
         grids_occupancy = (grids_occupancy_train * len(train_base) + grids_occupancy_val * len(val_base)) / total
@@ -498,6 +500,18 @@ if __name__ == "__main__":
     print(f"Best validation loss: {best_val_loss:.4f}")
     
     if check_dataset:
-        write_optuna_result(result_file, best_value=best_val_loss, pixel_occupancy=per_pixel_occupany, grid_occupancy=grids_occupancy)
+        write_optuna_result(result_file, best_value=best_val_loss, 
+                            total_pixel_occupancy=per_pixel_occupany, 
+                            total_grid_occupancy=grids_occupancy,
+                            val_pixel_occupancy=per_pixel_occupany_val,
+                            val_grid_occupancy=grids_occupancy_val,
+                            train_pixel_occupancy=per_pixel_occupany_train,
+                            train_grid_occupancy=grids_occupancy_train)
     else:
-        write_optuna_result(result_file, best_value=best_val_loss, pixel_occupancy=-1, grid_occupancy=-1)
+        write_optuna_result(result_file, best_value=best_val_loss, 
+                            total_pixel_occupancy=-1, 
+                            total_grid_occupancy=-1,
+                            val_pixel_occupancy=-1,
+                            val_grid_occupancy=-1,
+                            train_pixel_occupancy=-1,
+                            train_grid_occupancy=-1)

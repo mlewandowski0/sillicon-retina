@@ -1,0 +1,108 @@
+nohup: ignoring input
+E2VID Training on ECOCO Dataset
+================================
+device:  cuda
+Model has 130977 parameters
+
+Configuration:
+  num_bins: 5
+  num_prev_images: 3
+  burn_in_steps: 10
+  sequence_length: 30
+  hid1: 32
+  ks1: 3
+  add_bn: True
+  out_mode: density
+  use_amp: True
+  amp_dtype: fp16
+  force_recomputing: False
+  log_input: False
+  wandb_prefix: FIRE_saliency_p2=0.9
+  data_root: src/neural_network/data/saliency_dataset_upsampled
+  cache_folder: src/neural_network/data/saliency_dataset_upsampled
+  train_limit: None
+  val_limit: None
+  skip_frames: 1
+  batch_size: 2
+  num_epochs: 125
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  lr_step_size: 10
+  lr_gamma: 0.9
+  prefetch_factor: 4
+  dropout_rate: 0.2
+  augment: True
+  skip_type: sum
+  check_dataset: True
+  debug_save: True
+  debug_iters: 500
+  debug_folder: src/neural_network/debug/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  use_lpips: True
+  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  save_every: 5
+  keep_last_n_checkpoints: 5
+  num_workers: 8
+  use_wandb: True
+  silicon_retina_config: {'W': 320, 'H': 180, 'alpha1': 0.5, 'alpha2': 0.5, 'V_BIP_LPF_alpha': 0.5, 'lambda_OPL': 3.0, 'G_A_zero': 0.5, 'lambda_A': 0.5, 'p1': 0.25, 'I_bias_on': 0.01, 'I_bias_off': 0.01, 'p2': 0.9, 'p3': 0.2, 'U_rest_on': -0.05, 'U_rest_off': -0.05, 'U_th_on': 0.02, 'U_th_off': 0.02, 'U_reset_on': 0.04, 'U_reset_off': 0.04, 'HPF1_mode': 0, 'HPF1_param': 0.5, 'HPF2_mode': 1, 'HPF2_param': 0.5, 'blur1_mode': 0, 'blur2_mode': 0, 'apply_log_to_input': False, 'turn_off_feedback': False}
+  event_representation_class: 1
+  event_representation_params: {'num_bins': 5}
+  use_upsampled_from_OF: False
+  verbose: False
+  0%|          | 0/431 [00:00<?, ?it/s]  0%|          | 0/431 [00:06<?, ?it/s, avg_grid_occupancy=0.066, avg_per_pixel_occupancy=0.999]  0%|          | 1/431 [00:06<46:48,  6.53s/it, avg_grid_occupancy=0.066, avg_per_pixel_occupancy=0.999]  0%|          | 2/431 [00:26<1:42:33, 14.34s/it, avg_grid_occupancy=0.066, avg_per_pixel_occupancy=0.999]  1%|          | 3/431 [00:36<1:30:14, 12.65s/it, avg_grid_occupancy=0.066, avg_per_pixel_occupancy=0.999]  1%|          | 4/431 [00:48<1:26:05, 12.10s/it, avg_grid_occupancy=0.066, avg_per_pixel_occupancy=0.999]  1%|          | 5/431 [01:03<1:33:01, 13.10s/it, avg_grid_occupancy=0.066, avg_per_pixel_occupancy=0.999]  1%|          | 5/431 [01:34<1:33:01, 13.10s/it, avg_grid_occupancy=0.0492, avg_per_pixel_occupancy=0.947]  1%|▏         | 6/431 [01:34<2:17:40, 19.44s/it, avg_grid_occupancy=0.0492, avg_per_pixel_occupancy=0.947]  2%|▏         | 7/431 [01:40<1:45:26, 14.92s/it, avg_grid_occupancy=0.0492, avg_per_pixel_occupancy=0.947]  2%|▏         | 8/431 [01:52<1:38:12, 13.93s/it, avg_grid_occupancy=0.0492, avg_per_pixel_occupancy=0.947]  2%|▏         | 9/431 [02:03<1:31:34, 13.02s/it, avg_grid_occupancy=0.0492, avg_per_pixel_occupancy=0.947]  2%|▏         | 10/431 [02:10<1:19:08, 11.28s/it, avg_grid_occupancy=0.0492, avg_per_pixel_occupancy=0.947]  2%|▏         | 10/431 [02:16<1:19:08, 11.28s/it, avg_grid_occupancy=0.0358, avg_per_pixel_occupancy=0.865]  3%|▎         | 11/431 [02:16<1:07:43,  9.67s/it, avg_grid_occupancy=0.0358, avg_per_pixel_occupancy=0.865]  3%|▎         | 12/431 [02:21<58:03,  8.31s/it, avg_grid_occupancy=0.0358, avg_per_pixel_occupancy=0.865]    3%|▎         | 13/431 [02:28<53:53,  7.74s/it, avg_grid_occupancy=0.0358, avg_per_pixel_occupancy=0.865]  3%|▎         | 14/431 [02:33<48:13,  6.94s/it, avg_grid_occupancy=0.0358, avg_per_pixel_occupancy=0.865]Killed
+E2VID Training on ECOCO Dataset
+================================
+device:  cuda
+Model has 130977 parameters
+
+Configuration:
+  num_bins: 5
+  num_prev_images: 3
+  burn_in_steps: 10
+  sequence_length: 30
+  hid1: 32
+  ks1: 3
+  add_bn: True
+  out_mode: density
+  use_amp: True
+  amp_dtype: fp16
+  force_recomputing: False
+  log_input: False
+  wandb_prefix: FIRE_saliency_p2=0.8
+  data_root: src/neural_network/data/saliency_dataset_upsampled
+  cache_folder: src/neural_network/data/saliency_dataset_upsampled
+  train_limit: None
+  val_limit: None
+  skip_frames: 1
+  batch_size: 2
+  num_epochs: 125
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  lr_step_size: 10
+  lr_gamma: 0.9
+  prefetch_factor: 4
+  dropout_rate: 0.2
+  augment: True
+  skip_type: sum
+  check_dataset: True
+  debug_save: True
+  debug_iters: 500
+  debug_folder: src/neural_network/debug/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  use_lpips: True
+  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  save_every: 5
+  keep_last_n_checkpoints: 5
+  num_workers: 8
+  use_wandb: True
+  silicon_retina_config: {'W': 320, 'H': 180, 'alpha1': 0.5, 'alpha2': 0.5, 'V_BIP_LPF_alpha': 0.5, 'lambda_OPL': 3.0, 'G_A_zero': 0.5, 'lambda_A': 0.5, 'p1': 0.25, 'I_bias_on': 0.01, 'I_bias_off': 0.01, 'p2': 0.8, 'p3': 0.2, 'U_rest_on': -0.05, 'U_rest_off': -0.05, 'U_th_on': 0.02, 'U_th_off': 0.02, 'U_reset_on': 0.04, 'U_reset_off': 0.04, 'HPF1_mode': 0, 'HPF1_param': 0.5, 'HPF2_mode': 1, 'HPF2_param': 0.5, 'blur1_mode': 0, 'blur2_mode': 0, 'apply_log_to_input': False, 'turn_off_feedback': False}
+  event_representation_class: 1
+  event_representation_params: {'num_bins': 5}
+  use_upsampled_from_OF: False
+  verbose: False
+  0%|          | 0/431 [00:00<?, ?it/s]  0%|          | 0/431 [00:06<?, ?it/s, avg_grid_occupancy=0.0428, avg_per_pixel_occupancy=0.995]  0%|          | 1/431 [00:06<45:44,  6.38s/it, avg_grid_occupancy=0.0428, avg_per_pixel_occupancy=0.995]Killed
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/src/neural_network/experiment/saliency_using_FIREnetwork_events_v2.py", line 245, in <module>
+    with open(config_file, "r") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'src/neural_network/configs/saliency/retina/FIREnetwork_event_saliency_longer.json'

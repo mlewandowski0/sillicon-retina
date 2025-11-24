@@ -1,0 +1,3 @@
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency/retina/FIREnetwork_retina_saliency_p2_eq_0.9.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency/retina/FIREnetwork_retina_saliency_p2_eq_0.8.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/retina/FIREnetwork_event_saliency_longer.json
