@@ -25,6 +25,12 @@ enum class KERNEL_TYPE
     CUSTOM = 3
 };
 
+enum class Q_FEEDBACK_MODE
+{
+    ABS = 0,
+    QUADRATIC = 1
+};
+
 enum LPF_MODE
 {
     LPF_1
@@ -117,6 +123,10 @@ struct SiliconRetinaParams
     int kernel2_size = 3;
     float kernel1_sigma = 1.0f;  // For Gaussian kernels
     float kernel2_sigma = 1.0f;
+
+    // Q feedback mode
+    Q_FEEDBACK_MODE q_feedback_mode = Q_FEEDBACK_MODE::ABS;
+
     
     // For custom kernels - populated from Python
     std::vector<float> custom_kernel1;
@@ -150,6 +160,8 @@ struct SiliconRetinaParams
                         BLUR_MODE blur1_mode = BLUR_MODE::BLUR_AVG,
                         BLUR_MODE blur2_mode = BLUR_MODE::BLUR_AVG,
 
+                        Q_FEEDBACK_MODE q_feedback_mode = Q_FEEDBACK_MODE::ABS,
+
                         bool apply_log_to_input=false,
                         bool turn_off_feedback=false)
     {
@@ -180,6 +192,7 @@ struct SiliconRetinaParams
         this->blur1_mode = blur1_mode;
         this->blur2_mode = blur2_mode;
         this->turn_off_feedback = turn_off_feedback;
+        this->q_feedback_mode = q_feedback_mode;
     }
 
     std::string repr() const {
@@ -190,14 +203,14 @@ struct SiliconRetinaParams
             "p1=%.6g, I_bias_on=%.6g, I_bias_off=%.6g, p2=%.6g, p3=%.6g, "
             "U_rest_on=%.6g, U_rest_off=%.6g, U_th_on=%.6g, U_th_off=%.6g, "
             "U_reset_on=%.6g, U_reset_off=%.6g, HPF1_mode=%d, HPF1_param=%.6g, "
-            "HPF2_mode=%d, HPF2_param=%.6g, BLUR_MODE1=%d, BLUR_MODE2=%d, "
+            "HPF2_mode=%d, HPF2_param=%.6g, BLUR_MODE1=%d, BLUR_MODE2=%d, Q_FEEDBACK_MODE=%d, "
             "KERNEL1_TYPE=%d, KERNEL2_TYPE=%d, kernel1_size=%d, kernel2_size=%d, "
             "kernel1_sigma=%.6g, kernel2_sigma=%.6g, "
             "apply_log_to_input=%d, turn_off_feedback=%d)",
             H, W, alpha1, alpha2, V_BIP_LPF_alpha, lambda_OPL, G_A_zero, lambda_A,
             p1, I_bias_on, I_bias_off, p2, p3, U_rest_on, U_rest_off, U_th_on, U_th_off,
             U_reset_on, U_reset_off, (int)HPF1_mode, HPF1_param, (int)HPF2_mode, HPF2_param, 
-            (int)blur1_mode, (int)blur2_mode, (int)kernel1_type, (int)kernel2_type,
+            (int)blur1_mode, (int)blur2_mode, (int)q_feedback_mode, (int)kernel1_type, (int)kernel2_type,
             kernel1_size, kernel2_size, kernel1_sigma, kernel2_sigma,
             (int)apply_log_to_input, (int)turn_off_feedback);
         return std::string(buf);

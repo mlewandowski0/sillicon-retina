@@ -402,6 +402,7 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
                          KERNEL_TYPE kernel1_type,
                          int kernel1_size,
                          bool turn_off_feedback,
+                         Q_FEEDBACK_MODE q_feedback_mode,
                          cudaTextureObject_t tex = 0)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -425,7 +426,14 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
         return;
     }
 
-    Q[curr] = fmaxf(0.0f, fminf(G_A_zero + lambda_A * fabsf(V_BIP[prev]), 1.0f));
+    float Q_func = fabsf(V_BIP[prev]);
+    if (q_feedback_mode == Q_FEEDBACK_MODE::QUADRATIC)
+    {
+        Q_func = Q_func * Q_func;
+    }
+
+
+    Q[curr] = fmaxf(0.0f, fminf(G_A_zero + lambda_A * Q_func, 1.0f));
 
     V_BIP_LPF[curr] = apply_low_pass_filter(LPF_MODE::LPF_1,
                                             Q[curr],
@@ -633,7 +641,8 @@ void run_silicon_retina_model(
                                   retina_config.blur1_mode,
                                   retina_config.kernel1_type,
                                   retina_config.kernel1_size,
-                                  retina_config.turn_off_feedback);
+                                  retina_config.turn_off_feedback,
+                                  retina_config.q_feedback_mode);
 
         /* ---------- kernel C ---------- */
         k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2_mem, d_HPF2,
@@ -822,7 +831,8 @@ void run_silicon_retina_model_fired_only(
                                   retina_config.blur1_mode,
                                   retina_config.kernel1_type,
                                   retina_config.kernel1_size,
-                                  retina_config.turn_off_feedback);
+                                  retina_config.turn_off_feedback,
+                                  retina_config.q_feedback_mode);
 
         /* ---------- kernel C ---------- */
         k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2_mem, d_HPF2,
@@ -1010,7 +1020,8 @@ void run_silicon_retina_model_online(
                               retina_config.blur1_mode,
                               retina_config.kernel1_type,
                               retina_config.kernel1_size,
-                              retina_config.turn_off_feedback);
+                              retina_config.turn_off_feedback,
+                              retina_config.q_feedback_mode);
 
     /* ---------- kernel C ---------- */
     k_stageC<<<grid, block>>>(d_V_BIP_LPF, d_V_BIP, d_HPF2_mem, d_HPF2,

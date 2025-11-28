@@ -87,6 +87,12 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.doc() = "Silicon Retina Model with Configurable Convolution Kernels";
     
+    // Q_FEEDBACK_MODE enum
+    py::enum_<Q_FEEDBACK_MODE>(m, "Q_FEEDBACK_MODE")
+        .value("ABS", Q_FEEDBACK_MODE::ABS, "Absolute value feedback")
+        .value("QUADRATIC", Q_FEEDBACK_MODE::QUADRATIC, "Quadratic feedback")
+        .export_values(); 
+
     // HPF_MODE enum
     py::enum_<HPF_MODE>(m, "HPF_MODE")
         .value("SUB", HPF_MODE::SUB, "Subtraction mode")
@@ -120,6 +126,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             HPF_MODE, float,
             HPF_MODE, float,
             BLUR_MODE, BLUR_MODE,
+            Q_FEEDBACK_MODE,
             bool, bool>(),
             py::arg("H") = 256,
             py::arg("W") = 256,
@@ -146,6 +153,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
             py::arg("HPF2_param") = 0.5f,
             py::arg("blur1_mode") = BLUR_MODE::BLUR_AVG,
             py::arg("blur2_mode") = BLUR_MODE::BLUR_AVG,
+            py::arg("q_feedback_mode") = Q_FEEDBACK_MODE::ABS,
             py::arg("apply_log_to_input") = false,
             py::arg("turn_off_feedback") = false
         )
@@ -177,6 +185,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def_readwrite("HPF1_param", &SiliconRetinaParams::HPF1_param)
         .def_readwrite("HPF2_mode", &SiliconRetinaParams::HPF2_mode)
         .def_readwrite("HPF2_param", &SiliconRetinaParams::HPF2_param)
+
+        // Q feedback mode
+        .def_readwrite("q_feedback_mode", &SiliconRetinaParams::q_feedback_mode)
 
         // Blur modes
         .def_readwrite("blur1_mode", &SiliconRetinaParams::blur1_mode)

@@ -52,6 +52,9 @@ class SiliconRetinaConfig:
     custom_kernel1: Optional[List[float]] = None
     custom_kernel2: Optional[List[float]] = None
     
+    
+    q_feedback_mode : int = 0  # silicon_retina_cuda.Q_FEEDBACK_MODE.ABS
+    
     # Other options
     apply_log_to_input: bool = False
     turn_off_feedback: bool = False
@@ -87,6 +90,9 @@ class SiliconRetinaConfig:
         if 'kernel2_type' in filtered and hasattr(filtered['kernel2_type'], 'value'):
             filtered['kernel2_type'] = filtered['kernel2_type'].value
         
+        if 'q_feedback_mode' in filtered and hasattr(filtered['q_feedback_mode'], 'value'):
+            filtered['q_feedback_mode'] = filtered['q_feedback_mode'].value
+        
         return cls(**filtered)
     
     def to_cpp_struct(self) -> silicon_retina_cuda.SiliconRetinaParams:
@@ -118,7 +124,8 @@ class SiliconRetinaConfig:
             blur1_mode=silicon_retina_cuda.BLUR_MODE(self.blur1_mode),
             blur2_mode=silicon_retina_cuda.BLUR_MODE(self.blur2_mode),
             apply_log_to_input=self.apply_log_to_input,
-            turn_off_feedback=self.turn_off_feedback
+            turn_off_feedback=self.turn_off_feedback,
+            q_feedback_mode=silicon_retina_cuda.Q_FEEDBACK_MODE(self.q_feedback_mode)
         )
         
         # Set kernel configuration
