@@ -1,0 +1,51 @@
+nohup: ignoring input
+E2VID Training on ECOCO Dataset
+================================
+device:  cuda
+Model has 130977 parameters
+
+Configuration:
+  num_bins: 5
+  num_prev_images: 3
+  burn_in_steps: 10
+  sequence_length: 30
+  hid1: 32
+  ks1: 3
+  add_bn: True
+  out_mode: density
+  use_amp: True
+  amp_dtype: fp16
+  force_recomputing: False
+  log_input: False
+  wandb_prefix: FIRE_saliency_seq=30_quad_fb
+  data_root: src/neural_network/data/saliency_dataset_upsampled
+  cache_folder: src/neural_network/data/saliency_dataset_upsampled
+  train_limit: None
+  val_limit: None
+  skip_frames: 1
+  batch_size: 2
+  num_epochs: 125
+  learning_rate: 0.0001
+  weight_decay: 0.0001
+  lr_step_size: 10
+  lr_gamma: 0.9
+  prefetch_factor: 4
+  dropout_rate: 0.2
+  augment: True
+  skip_type: sum
+  check_dataset: True
+  debug_save: True
+  debug_iters: 500
+  debug_folder: src/neural_network/debug/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  use_lpips: True
+  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_retina_saliency_length=30_burnin=10_no_log_basic_se_reg_events
+  save_every: 5
+  keep_last_n_checkpoints: 5
+  num_workers: 8
+  use_wandb: True
+  silicon_retina_config: {'W': 320, 'H': 180, 'alpha1': 0.5, 'alpha2': 0.5, 'V_BIP_LPF_alpha': 0.5, 'lambda_OPL': 3.0, 'G_A_zero': 0.5, 'lambda_A': 0.5, 'p1': 0.25, 'I_bias_on': 0.01, 'I_bias_off': 0.01, 'p2': 1.0, 'p3': 0.2, 'U_rest_on': -0.05, 'U_rest_off': -0.05, 'U_th_on': 0.02, 'U_th_off': 0.02, 'U_reset_on': 0.04, 'U_reset_off': 0.04, 'HPF1_mode': 0, 'HPF1_param': 0.5, 'HPF2_mode': 1, 'HPF2_param': 0.5, 'blur1_mode': 0, 'blur2_mode': 0, 'kernel1_type': 0, 'kernel1_size': 3, 'kernel1_sigma': 1.0, 'kernel2_type': 0, 'kernel2_size': 3, 'kernel2_sigma': 1.0, 'q_feedback_mode': 1, 'apply_log_to_input': False, 'turn_off_feedback': False}
+  event_representation_class: 1
+  event_representation_params: {'num_bins': 5}
+  use_upsampled_from_OF: False
+  verbose: False
+  0%|          | 0/431 [00:00<?, ?it/s]  0%|          | 0/431 [00:05<?, ?it/s, avg_grid_occupancy=0.0976, avg_per_pixel_occupancy=1]  0%|          | 1/431 [00:05<41:56,  5.85s/it, avg_grid_occupancy=0.0976, avg_per_pixel_occupancy=1]  0%|          | 2/431 [00:11<40:13,  5.63s/it, avg_grid_occupancy=0.0976, avg_per_pixel_occupancy=1]

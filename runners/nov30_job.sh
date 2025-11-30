@@ -1,0 +1,3 @@
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency/retina/FIREnetwork_retina_saliency_p2_eq_1.0_quad_fb.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_silicon_retina -c src/neural_network/configs/saliency/retina/FIREnetwork_retina_saliency_p2_eq_1.0_seq=30_gk7.json
+python -m src.neural_network.experiment.saliency_BO_sweep
