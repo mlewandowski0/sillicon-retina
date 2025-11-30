@@ -16,7 +16,7 @@
         "force_recomputing" : false,
         "log_input" : false,
 
-        "wandb_prefix" : "FIRE_saliency_p2=1.0",
+        "wandb_prefix" : "BO_search_retina_saliency",
  
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
