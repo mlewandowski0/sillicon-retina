@@ -5,7 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/neural_network/reusing_videos/esim_torch/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.12 virtualenv at ~/Desktop/PROJS/sillicon-retina/.venv" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.13 (sillicon-retina)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
