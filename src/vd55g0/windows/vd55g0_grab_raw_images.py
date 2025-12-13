@@ -2,7 +2,7 @@ import os
 from vd55g0_constants import *
 from image_sensor_python_sdk import *
 from smart_imshow import SmartImshow
-
+import time 
 
 from vd55g0_frame_decoding import decode_frame
 
@@ -31,10 +31,16 @@ sensor_dll.start_stream()
 raw_images = []
 
 # Grab N first frames
+# Split images
+t = time.time()
 for i in range(10):
     raw_images.append(sensor_dll.get_raw_image())
 
-# Split images
+finish = time.time()
+print("Processing time for 10 frames: ", finish - t)
+print(f"FPS : {10/(finish - t)}")
+
+
 for frame in raw_images:
 
 
@@ -49,6 +55,8 @@ for frame in raw_images:
     decoded_image = sensor_dll.decode_raw_10(raw10_data)
 
     print(frame_counter, exposure, np.average(decoded_image))
+
+
 
 sensor_dll.stop_stream()
 sensor_dll.deinit_board()

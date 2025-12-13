@@ -30,6 +30,10 @@ class CamWorker(threading.Thread):
         
         # Init Board
         BIN_2x2 = 1
+        BIN_4x4 = 2
+        SUB_2x2 = 3
+        SUB_4x4 = 4
+        
         self.sensor_dll = SensorDll(LIB_NAME, decode_frame)
         self.sensor_dll.init_board()
         
@@ -39,18 +43,20 @@ class CamWorker(threading.Thread):
         self.sensor_dll.Write16(VD55G0_REG_CONTEXTS_OUT_ROI_Y_START, 2)
         self.sensor_dll.Write16(VD55G0_REG_CONTEXTS_OUT_ROI_Y_END, 601)
         self.sensor_dll.Write16(VD55G0_REG_STATICS_FORMAT_CTRL, bits_per_pixel)
-        self.sensor_dll.Write8(VD55G0_REG_CONTEXTS_READOUT_CTRL, BIN_2x2)
+        self.sensor_dll.Write8(VD55G0_REG_CONTEXTS_READOUT_CTRL, 0)
         self.sensor_dll.Write16(VD55G0_REG_STATICS_ORIENTATION, 0x1)
 
         self.sensor_dll.Write32(VD55G0_REG_SENSOR_SETTINGS_EXT_CLOCK, 12000000)
         self.sensor_dll.Write32(VD55G0_REG_SENSOR_SETTINGS_CLK_PLL_MIPI, 1200000000)
         
-        # --- CRITICAL: EXPOSURE TIME SETTING (Example) ---
-        # If your exposure is 30ms, you CANNOT go faster than 33 FPS.
-        # To hit 200 FPS, exposure must be < 5ms.
-        # Check your documentation for the specific register for "Integration Time" or "Exposure"
-        # self.sensor_dll.Write16(VD55G0_REG_INTEGRATION_TIME, 200) # <--- Hypothetical Example
+        frame_length = self.sensor_dll.Read16(VD55G0_REG_CONTEXTS_FRAME_LENGTH)
+        print(f"Frame length: {frame_length} lines")
+
+        self.sensor_dll.Write16(VD55G0_REG_CONTEXTS_FRAME_LENGTH, 700)
+        self.sensor_dll.Write8(VD55G0_REG_CONTEXTS_EXP_MODE, 0x0)
+
         
+
     def start_recording(self):
         print(f"--- STARTED RECORDING ({RECORD_DURATION}s) ---")
         self.total_captured = 0 # Reset counter
@@ -94,7 +100,10 @@ class CamWorker(threading.Thread):
     def run(self):
         self.sensor_dll.start_stream()
         width = self.sensor_dll.Read16(VD55G0_REG_STATUS_OUT_ROI_X_SIZE)
-        
+
+        framerate = self.sensor_dll.Read16(VD55G0_REG_STATUS_FRAME_RATE) // 16
+        print(f"FRAMERATE : {framerate}")
+
         # FPS Calculation Variables
         frame_count = 0
         start_time = time.time()
