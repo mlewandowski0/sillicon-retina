@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # Run the optimization
     # n_trials=50 is a good start. Since it's expensive, you might want fewer.
     try:
-        study.optimize(objective, n_trials=50)
+        study.optimize(objective, n_trials=25)
     except KeyboardInterrupt:
         print("Optimization interrupted by user.")
 

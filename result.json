@@ -1,9 +1,9 @@
 {
-    "best_value": 0.7105860916050998,
-    "total_pixel_occupancy": 0.9103524209283222,
-    "total_grid_occupancy": 0.06828226014695316,
-    "val_pixel_occupancy": 0.9157763573232325,
-    "val_grid_occupancy": 0.06855062998620912,
-    "train_pixel_occupancy": 0.9089681216163962,
-    "train_grid_occupancy": 0.06821376668449805
+    "best_value": 0.7038925723596052,
+    "total_pixel_occupancy": 0.8976602613472998,
+    "total_grid_occupancy": 0.056884304653377425,
+    "val_pixel_occupancy": 0.90759264520202,
+    "val_grid_occupancy": 0.05737423110117256,
+    "train_pixel_occupancy": 0.8951253141918027,
+    "train_grid_occupancy": 0.056759265420761505
 }
