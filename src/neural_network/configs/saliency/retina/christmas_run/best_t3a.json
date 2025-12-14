@@ -1,0 +1,95 @@
+{
+        "num_bins": 5,
+        "num_prev_images": 3,
+
+        "burn_in_steps" : 10,
+        "sequence_length": 30,
+
+        "hid1" : 32,
+        "ks1" : 3,
+        "add_bn" : true,
+        "out_mode" : "density",
+
+        "use_amp" : true,
+        "amp_dtype" : "fp16",
+
+        "force_recomputing" : false,
+        "log_input" : false,
+
+        "wandb_prefix" : "Fire_saliency_best1_t3_hp",
+ 
+        "data_root": "src/neural_network/data/saliency_dataset_upsampled",
+        "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
+        "train_limit": null,
+        "val_limit": null,
+        "skip_frames": 1,
+
+        "batch_size": 2,
+        "num_epochs": 125,
+        "learning_rate": 1e-4,
+        "weight_decay": 1e-4,
+        "lr_step_size": 10,
+        "lr_gamma": 0.9,
+        "prefetch_factor" : 4,
+        "dropout_rate" : 0.2,
+        "augment" : true,
+        "skip_type" : "sum",
+        "check_dataset" : true,
+
+        "debug_save" : true,
+        "debug_iters" : 500,
+        "debug_folder": "src/neural_network/debug/best1_t3_hp",
+
+        "use_lpips": true,
+
+        "checkpoint_dir": "src/neural_network/checkpoints/best1_t3_hp",
+        "save_every": 5,
+        "keep_last_n_checkpoints": 5,
+
+        "num_workers": 8,
+        "use_wandb": true,
+
+        "silicon_retina_config": {
+        "W" : 320,
+        "H" : 180,
+        "alpha1": 0.5,
+        "alpha2": 0.5,
+        "V_BIP_LPF_alpha": 0.5,
+        "lambda_OPL": 3.0,
+        "G_A_zero": 0.5,
+        "lambda_A": 0.5,
+        "p1": 0.25,
+        "I_bias_on": 0.01,
+        "I_bias_off": 0.01,
+        "p2": 1.2,
+        "p3": 0.2,
+        "U_rest_on": -0.05,
+        "U_rest_off": -0.05,
+        "U_th_on": 0.02,
+        "U_th_off": 0.02,
+        "U_reset_on": 0.04,
+        "U_reset_off": 0.04,
+        "HPF1_mode": 0,
+        "HPF1_param": 0.5,
+        "HPF2_mode": 1,
+        "HPF2_param": 0.5,
+        "blur1_mode" : 0,
+        "blur2_mode" : 0,
+
+        "kernel1_type" : 0,
+        "kernel1_size" : 3,
+        "kernel1_sigma" : 1.0,
+
+        "kernel2_type" : 1,
+        "kernel2_size" : 5,
+        "kernel2_sigma" : 1.0,
+
+        "q_feedback_mode" : 1,
+
+        "apply_log_to_input": false,
+        "turn_off_feedback" : false
+        },
+        "event_representation_class": 1,
+        "event_representation_params": {
+        }
+    }
