@@ -33,7 +33,7 @@
     } while (0)
 
 // Max supported kernel size
-#define MAX_KERNEL_SIZE 15
+#define MAX_KERNEL_SIZE 33
 #define MAX_KERNEL_ELEMENTS (MAX_KERNEL_SIZE * MAX_KERNEL_SIZE)
 
 // Constant memory for kernel weights - fast broadcast reads
@@ -133,7 +133,7 @@ __device__ float apply_convolution(const float *__restrict__ input,
         }
     }
 
-    return fclampf(output, 0.0f, 1.0f);
+    return fclampf(output, -1.0f, 1.0f);
 }
 
 // Texture-based convolution (more efficient for larger images)
@@ -180,7 +180,7 @@ __device__ float apply_convolution_texture(cudaTextureObject_t tex,
         }
     }
 
-    return fclampf(output, 0.0f, 1.0f);
+    return fclampf(output, -1.0f, 1.0f);
 }
 
 __device__ float apply_blur_avg(int kernel_size, int W, int H,
@@ -212,8 +212,7 @@ __device__ float apply_blur_avg(int kernel_size, int W, int H,
         }
     }
 
-    // TODO : saturating ? don't think it's necessary
-    output = fclampf(output, 0.0f, 1.0f);
+    output = fclampf(output, -1.0f, 1.0f);
     return (cnt > 0.0f) ? output / cnt : 0.0f;
 }
 
@@ -294,7 +293,8 @@ __forceinline__ __device__ float euler_method(float previous_value,
                                               float g_A)
 {
     // fmaf(x, y, z) -> z + x * y
-    return fmaf(p1, fmaf(-g_A, previous_value, I_OPL), previous_value);
+    float val = fmaf(p1, fmaf(-g_A, previous_value, I_OPL), previous_value);
+    return fmaxf(-1.0, fminf(val, 1.0));
     // return previous_value + p1 * (I_OPL - g_A * previous_value);
 }
 
@@ -321,12 +321,18 @@ __device__ float compute_next_LIF(LIF_INTEGRATION_MODE mode,
                                   float I_gang,
                                   float U_rest)
 {
+
+    float val;
     if (mode == LIF_INTEGRATION_MODE::LIF_INTEGRATION_1)
     {
-        return compute_next_LIF1(previous_LIF, p2, p3, I_gang, U_rest);
+        val = compute_next_LIF1(previous_LIF, p2, p3, I_gang, U_rest);
+    }
+    else
+    {
+        val = compute_next_LIF1(previous_LIF, p2, p3, I_gang, U_rest);
     }
 
-    return compute_next_LIF1(previous_LIF, p2, p3, I_gang, U_rest);
+    return fmaxf(fminf(val, 1.0), -1.0);
 }
 
 __forceinline__ __device__ char fire_and_reset(LIF_RESET_MODE mode,
@@ -417,7 +423,7 @@ __global__ void k_stageB(const float *__restrict__ LPF2,
                                 kernel1_size, W, H,
                                 LPF2, idx, curr - idx, tex);
 
-    I_OPL[curr] = lambda_OPL * (BLURRED2[curr] - LPF2[curr]);
+    I_OPL[curr] = lambda_OPL * (LPF2[curr] - BLURRED2[curr]);
 
     if (turn_off_feedback)
     {
@@ -1112,8 +1118,8 @@ std::vector<torch::Tensor> forward_silicon_retina_online(
 
     run_silicon_retina_model_online(d_images.data<float>(),
                                     d_LPF1.data<float>(),
-                                    d_HPF1.data<float>(),
                                     d_HPF1_mem.data<float>(),
+                                    d_HPF1.data<float>(),
                                     d_BLURRED2.data<float>(),
                                     d_LPF2.data<float>(),
                                     d_I_OPL.data<float>(),

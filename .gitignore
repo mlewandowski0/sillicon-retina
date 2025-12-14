@@ -27,3 +27,5 @@ visualizations.zip
 to_cluster.zip
 
 src/neural_network/configs/occupancy_sweeps/visualizations
+paper-figures/scamp5_videos
+paper-figures/visualization_figures/*

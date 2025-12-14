@@ -486,6 +486,7 @@ class SiliconRetinaFloatCUDAOnline(torch.nn.Module):
         self.V_LIF_off.zero_()
         self.fired_on.zero_()
         self.fired_off.zero_()
+        silicon_retina_cuda.initialize_kernels(self.config.to_cpp_struct())
     
     def forward(self, img, t=None):
         """
