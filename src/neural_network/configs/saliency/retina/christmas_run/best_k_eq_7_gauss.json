@@ -16,7 +16,7 @@
         "force_recomputing" : false,
         "log_input" : false,
 
-        "wandb_prefix" : "Fire_saliency_best1_k1",
+        "wandb_prefix" : "Fire_saliency_best1",
  
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
@@ -38,11 +38,11 @@
 
         "debug_save" : true,
         "debug_iters" : 500,
-        "debug_folder": "src/neural_network/debug/best1_k1",
+        "debug_folder": "src/neural_network/debug/best1",
 
         "use_lpips": true,
 
-        "checkpoint_dir": "src/neural_network/checkpoints/best1_k1",
+        "checkpoint_dir": "src/neural_network/checkpoints/best1",
         "save_every": 5,
         "keep_last_n_checkpoints": 5,
 
@@ -76,13 +76,13 @@
         "blur1_mode" : 0,
         "blur2_mode" : 0,
 
-        "kernel1_type" : 1,
-        "kernel1_size" : 5,
+        "kernel1_type" : 0,
+        "kernel1_size" : 3,
         "kernel1_sigma" : 1.0,
 
-        "kernel2_type" : 0,
-        "kernel2_size" : 3,
-        "kernel2_sigma" : 1.0,
+        "kernel2_type" : 1,
+        "kernel2_size" : 7,
+        "kernel2_sigma" : 1.2,
 
         "q_feedback_mode" : 1,
 
