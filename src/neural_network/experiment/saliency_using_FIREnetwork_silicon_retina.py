@@ -184,19 +184,16 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
 def validate(model, loader, device, epoch, config, saliency_loss):
     model.eval()
     total = 0.0
+    valid_batches = 0  # Track valid batches
 
     burn_in_steps = int(config.get("burn_in_steps", 0))
-    max_shift = int(config.get("shift_loss_max_offset", 1))
 
     pbar = tqdm(loader, desc=f"Validation {epoch + 1}/{config['num_epochs']}")
 
     for batch_idx, batch in enumerate(pbar):
-        frames = batch['frames'].to(device)      # (B, L, 1, H, W)
-        grids = batch['grids'].to(device)        # (B, L, 5, H, W)
-        flows = batch.get('optical_flows', None)
-        if flows is not None:
-            flows = flows.to(device)
-        valid = batch['valid_mask'].to(device)   # (B, L)
+        frames = batch['frames'].to(device)
+        grids = batch['grids'].to(device)
+        valid = batch['valid_mask'].to(device)
 
         B, L, _, H, W = frames.shape
         model.reset(input_shape=(H, W), batch_size=B)
@@ -206,35 +203,47 @@ def validate(model, loader, device, epoch, config, saliency_loss):
 
         bi = min(burn_in_steps, L)
         for t in range(bi):
-            if not valid[:, t].any(): continue
+            if not valid[:, t].any(): 
+                continue
             _ = model(grids[:, t])
 
         for t in range(bi, L):
-
             x_t = grids[:, t]
             Igt_t = frames[:, t]
             
             Ihat_t = model(x_t)
+            
+            # Check for NaN in network output
+            if torch.isnan(Ihat_t).any():
+                print(f"Warning: NaN in model output at batch {batch_idx}, step {t}")
+                continue
 
             if not valid[:, t].any():
                 continue
 
             loss_sample, _, _ = saliency_loss(Ihat_t, Igt_t)
-            loss += loss_sample
-
-            Ihat_prev = Ihat_t
-            Igt_prev = Igt_t
+            
+            # Skip if loss is NaN
+            if torch.isnan(loss_sample):
+                print(f"Warning: NaN loss at batch {batch_idx}, step {t}")
+                continue
+                
+            loss += float(loss_sample.detach().cpu().item())
             valid_steps += 1
 
         if valid_steps == 0:
             continue
-        loss = loss / valid_steps
-        total += float(loss.detach().cpu().item())
+            
+        batch_loss = loss / valid_steps
+        
+        # Skip NaN batch losses
+        if not np.isnan(batch_loss):
+            total += batch_loss
+            valid_batches += 1
 
-        pbar.set_postfix({'val_loss': f"{total / (batch_idx + 1):.4f}"})
+        pbar.set_postfix({'val_loss': f"{total / max(1, valid_batches):.4f}"})
 
-    return total / max(1, len(loader))
-
+    return total / max(1, valid_batches)
 
 
 if __name__ == "__main__":

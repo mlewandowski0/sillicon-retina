@@ -30,7 +30,9 @@ class ResidualBlock(nn.Module):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=k, stride=stride, padding=k // 2)
         if add_bn:
-            self.bn = nn.BatchNorm2d(out_ch)
+            # GroupNorm is more stable with sparse/variable inputs
+            num_groups = min(8, out_ch)
+            self.bn = nn.GroupNorm(num_groups=num_groups, num_channels=out_ch)
         else:
             self.bn = nn.Identity()
         self.act = nn.ReLU(inplace=True)
