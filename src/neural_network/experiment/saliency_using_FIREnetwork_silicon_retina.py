@@ -7,6 +7,7 @@ import torch
 import os
 import matplotlib.pyplot as plt
 from torch.profiler import profile, record_function, ProfilerActivity, schedule
+import numpy as np
 
 
 from torch.utils.data import DataLoader

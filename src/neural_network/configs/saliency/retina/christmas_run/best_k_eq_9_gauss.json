@@ -16,7 +16,7 @@
         "force_recomputing" : false,
         "log_input" : false,
 
-        "wandb_prefix" : "Fire_saliency_best1",
+        "wandb_prefix" : "best_k_eq_9_gauss",
  
         "data_root": "src/neural_network/data/saliency_dataset_upsampled",
         "cache_folder": "src/neural_network/data/saliency_dataset_upsampled",
