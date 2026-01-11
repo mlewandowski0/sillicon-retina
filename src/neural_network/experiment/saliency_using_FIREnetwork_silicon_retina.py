@@ -25,7 +25,7 @@ from src.neural_network.utils.util import validate_occupancy_dataset, write_optu
 from torch.optim.lr_scheduler import StepLR
 
 
-torch.backends.cudnn.benchmark = True
+torch.backends.cudnn.benchmark = TrueF
 
 class StepLRWithMin(StepLR):
     def __init__(self, optimizer, step_size, gamma=0.1, last_epoch=-1, min_lr=1e-6):
