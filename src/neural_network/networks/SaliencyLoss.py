@@ -34,7 +34,7 @@ class SaliencyLoss(torch.nn.Module):
         q_c = q - q_mu
         num = (y_c * q_c).mean(dim=1)
         den = (y_c.pow(2).mean(dim=1).sqrt().clamp_min(self.eps) *
-        q_c.pow(2).mean(dim=1).sqrt().clamp_min(self.eps))
+                q_c.pow(2).mean(dim=1).sqrt().clamp_min(self.eps))
         cc = num / den 
         return -cc.mean()
 
