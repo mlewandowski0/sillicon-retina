@@ -140,7 +140,14 @@ def train_epoch(model, loader, optimizer, device, epoch, config,
         # normalize by number of valid time steps (prevents dependence on L)
         if valid_steps == 0:
             continue
+        
         loss = loss / valid_steps
+
+        # --- NAN SAFETY CHECK ---
+        if torch.isnan(loss) or torch.isinf(loss):
+            print(f"Warning: NaN/Inf loss detected at Epoch {epoch} Batch {batch_idx}. Skipping update.")
+            optimizer.zero_grad(set_to_none=True)
+            continue
 
         # optimize
         optimizer.zero_grad(set_to_none=True)
