@@ -1,3 +1,9 @@
+import os
+
+# Fix for weird tkinter error 
+os.environ["MPLBACKEND"] = "Agg"
+
+
 import argparse
 import json
 import wandb
