@@ -133,7 +133,13 @@ class VideoDatasetUpsampling(Dataset):
         if num_bisections < 0:
             flow_mag_0_1_max = ((F_0_1 ** 2).sum(-1) ** .5).max()
             flow_mag_1_0_max = ((F_1_0 ** 2).sum(-1) ** .5).max()
-            num_bisections = int(np.ceil(np.log(max([flow_mag_0_1_max, flow_mag_1_0_max]))/np.log(2)))
+            max_flow = max([flow_mag_0_1_max, flow_mag_1_0_max])
+            if max_flow < 1.0:
+                num_bisections = 0  # No interpolation needed
+            else:
+                num_bisections = int(np.ceil(np.log2(max_flow)))
+                num_bisections = min(num_bisections, 4)  # safety cap
+                
 
             # for safety, limit the number of bisections to 5 
             num_bisections = min(num_bisections, 4)
