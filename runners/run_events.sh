@@ -1,1 +1,11 @@
-python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_225_create.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_225.json
+
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_25_create.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_25.json
+
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_275_create.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_275.json
+
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_30_create.json
+python -m src.neural_network.experiment.saliency_using_FIREnetwork_events_v2 -c src/neural_network/configs/saliency/events/FIREnetwork_event_saliency_thr_30.json
