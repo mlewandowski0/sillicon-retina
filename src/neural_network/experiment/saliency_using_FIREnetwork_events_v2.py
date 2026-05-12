@@ -394,11 +394,14 @@ if __name__ == "__main__":
     
     use_wandb = config.get("use_wandb", False)
     config["use_wandb"] = use_wandb
+    
+    name_wandb = config.get("wandb_name", f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    
     if config.get('use_wandb', False):
         wandb.init(
             project="e2vid-saliency2",
             config=config,
-            name=f"FIREnetwork_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            name=name_wandb
         )
         
     # print configuration
