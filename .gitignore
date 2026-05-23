@@ -12,6 +12,9 @@ src/silicon_retina_cuda_kernel/frames/*
 src/silicon_retina_cuda_kernel/out/*
 wandb/*
 
+# reference/*
+
+
 *.pyc
 *.pth
 *.sillicon_retina_python_simulation

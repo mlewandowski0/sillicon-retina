@@ -1,5 +1,77 @@
-E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda()>; _ArgTypes = {}]	0	static
-E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda()>&; _Args = {}]	8	static
-E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda()>; _ArgTypes = {}]	8	static
-E:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_24.12.0.202407110909/tools/arm-none-eabi/include/c++/13.2.1/bits/std_function.h:241:5:std::_Function_base::~_Function_base()	8	static
-../src/scamp5_main.cpp:17:5:int main()	40	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda()>; _ArgTypes = {}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:267:7:), _Functor>::_M_manager(std::_Any_data&, const std::_Any_data&, std::_Manager_operation) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	0	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:102:5:scamp5_kernel::~scamp5_kernel()	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda()>&; _Args = {}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda()>; _ArgTypes = {}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/invoke.h:145:5:) [with _Res = void; _Callable = main()::<lambda(int32_t)>&; _Args = {long int}]	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:288:7:) [with _Res = void; _Functor = main()::<lambda(int32_t)>; _ArgTypes = {long int}]	8	static
+../src/scamp5_main.cpp:1163:1:void __static_initialization_and_destruction_0()	8	static
+D:/MCUXpressoIDE/ide/plugins/com.nxp.mcuxpresso.tools.win32_25.6.0.202501151204/tools/arm-none-eabi/include/c++/14.2.1/bits/std_function.h:241:5:std::_Function_base::~_Function_base()	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:452:24:scamp5_icw& scamp5_icw::bus(const areg_t&)	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:458:24:scamp5_icw& scamp5_icw::bus(const areg_t&, const aref_t&)	12	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:465:24:scamp5_icw& scamp5_icw::bus(const areg_t&, const aref_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:500:24:scamp5_icw& scamp5_icw::bus2(const areg_t&, const areg_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:537:24:scamp5_icw& scamp5_icw::blur(const areg_t&, const aref_t&)	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:649:24:scamp5_icw& scamp5_icw::SET(const dreg_t&, const dreg_t&)	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:734:24:scamp5_icw& scamp5_icw::MOV(const dreg_t&, const dref_t&)	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:784:24:scamp5_icw& scamp5_icw::NOT(const dreg_t&, const dref_t&)	12	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_icw.hpp:796:24:scamp5_icw& scamp5_icw::NOR(const dreg_t&, const dref_t&, const dref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:346:13:void scamp5_kernel_api::bus(const areg_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:491:13:void scamp5_kernel_api::where(const aref_t&)	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:530:13:void scamp5_kernel_api::WHERE(const dref_t&)	8	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:557:13:void scamp5_kernel_api::ALL()	0	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:575:13:void scamp5_kernel_api::SET(const dreg_t&, const dreg_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:638:13:void scamp5_kernel_api::MOV(const dreg_t&, const dref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api.hpp:674:13:void scamp5_kernel_api::NOT(const dreg_t&, const dref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:65:13:void scamp5_kernel_api::mov(const areg_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:82:13:void scamp5_kernel_api::add(const areg_t&, const aref_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:108:13:void scamp5_kernel_api::sub(const areg_t&, const aref_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:118:13:void scamp5_kernel_api::neg(const areg_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:129:13:void scamp5_kernel_api::abs(const areg_t&, const aref_t&)	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:193:13:void scamp5_kernel_api::diva(const areg_t&, const areg_t&, const areg_t&)	16	static
+../src/scamp5_main.cpp:834:20:void multiply_A_by_p2_into_A_via_C()	16	static
+../src/scamp5_main.cpp:867:20:void multiply_C_by_p3_into_D()	16	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_analog.hpp:514:13:void scamp5_kernel_api::gauss(const areg_t&, const aref_t&, int)	24	static
+D:\SCAMP\scamp5d_lib\s5d_m0\inc/scamp5_kernel_api_macro_digital.hpp:220:13:void scamp5_kernel_api::AND(const dreg_t&, const dref_t&, const dref_t&)	24	static
+../src/scamp5_main.cpp:202:13:void load_superpixel_masks()	16	static
+../src/scamp5_main.cpp:213:13:void replicate_A_across_superpixel()	16	static
+../src/scamp5_main.cpp:233:13:void replicate_F_across_superpixel()	16	static
+../src/scamp5_main.cpp:271:6:void mac_alpha_A_into_B(low_pass_filter&)	24	static
+../src/scamp5_main.cpp:295:6:void mac_alpha_C_into_B(low_pass_filter&)	24	static
+../src/scamp5_main.cpp:328:13:void stage_blur_input()	8	static
+../src/scamp5_main.cpp:342:13:void stage_hpf1()	32	static
+../src/scamp5_main.cpp:366:13:void stage_lpf1()	16	static
+../src/scamp5_main.cpp:407:13:void stage_blur_surround()	8	static
+../src/scamp5_main.cpp:419:13:void stage_lpf2()	16	static
+../src/scamp5_main.cpp:460:13:void stage_compute_opl()	16	static
+../src/scamp5_main.cpp:473:13:void stage_amplify_opl()	24	static
+../src/scamp5_main.cpp:522:6:void stage_gain_control()	32	static
+../src/scamp5_main.cpp:741:13:void stage_hpf2()	40	static
+../src/scamp5_main.cpp:769:13:void save_signed_gang_to_sto1f()	8	static
+../src/scamp5_main.cpp:779:13:void restore_signed_gang_from_sto1f_and_negate()	16	static
+../src/scamp5_main.cpp:794:13:void stage_nonlinearity_N()	16	static
+../src/scamp5_main.cpp:895:6:void run_lif_on()	32	static
+../src/scamp5_main.cpp:948:6:void run_lif_off()	32	static
+../src/scamp5_main.cpp:998:5:int main()	184	static
+../src/scamp5_main.cpp:1163:1:cpp)	8	static
