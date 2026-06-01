@@ -6,7 +6,7 @@
  * Generated linker script file for LPC4357-M0
  * Created from memory.ldt by FMCreateLinkMemory
  * Using Freemarker v2.3.30
- * MCUXpresso IDE v25.6 [Build 136] [2025-06-27] on May 23, 2026, 7:01:24 PM
+ * MCUXpresso IDE v25.6 [Build 136] [2025-06-27] on Jun 1, 2026, 3:52:41 PM
  */
 
 MEMORY

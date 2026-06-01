@@ -54,27 +54,31 @@
  *
  *  STO2   (South of PE)   persistent state, all reads/writes via PE.<->S bus
  *      A             [transient] blur replica of PE.A during gauss()
+ *                    -- ALSO repurposed as an INTRA-FRAME hold for the
+ *                       signed I_bip between stage_lif_pos and
+ *                       stage_lif_neg (see store_I_bip / restore_I_bip).
+ *                       Safe because no spatial-blur stage runs in that
+ *                       window.
  *      B             E_A LPF state (gain-feedback LPF on Q(V_BIP))
  *                    macro BIPOLAR_LPF_REGISTER_STO2 = B
  *                    --> read+written by stage_gain_control()
  *      C             PREV_FRAME for the 2nd HPF (the previous I_OPL frame)
  *                    macro PREV_FRAME_STO2 = C
  *                    --> read+written by stage_hpf2()
- *      D             pos  V_LIF membrane voltage (ganglion LIF state)
+ *      D             ON-channel  V_LIF membrane voltage
  *                    macro MEMBRANE_STO2 = D
  *                    --> read+written by stage_lif_pos()
- *      E             neg V_LIF membrane voltage (ganglion LIF state)
- *                    macro MEMBRANE_STO2 = D
- *                    --> read+written by stage_lif_pos()
+ *      E             OFF-channel V_LIF membrane voltage
+ *                    macro MEMBRANE_NEG_STO2 = E
+ *                    --> read+written by stage_lif_neg()
  *      F             (free)
  *
  *  STO3   (diagonal)      currently only used as a blur replica target
  *      A,F           [transient] blur replicas of PE.A / PE.F
- *      
  *      B,C,D,E       (free)
  *
- *  Persistent AREG usage : 7 of 18 STO slots (~39%).
- *  AREG free for future  : STO1.F, STO2.E, STO2.F, STO3.{B,C,D,E}.
+ *  Persistent AREG usage : 8 of 18 STO slots (~44%).
+ *  AREG free for future  : STO1.F, STO2.F, STO3.{B,C,D,E}.
  *
  *****************************************************************************
  *
@@ -87,20 +91,27 @@
  *
  *  S4   multiplexed scratch (alive only briefly inside one stage at a time):
  *         - I_OPL_SMALLER_THAN_THRESHOLD   (inside stage_amplify_opl)
- *         - N_NEGATIVE                     (inside stage_nonlinearity_N_pos)
+ *         - N_NEGATIVE                     (inside stage_nonlinearity_N_pos
+ *                                                  and stage_nonlinearity_N_neg)
  *         - VBIP_GREATER_THAN_64           (inside stage_gain_control)
- *         - FIRING                         (inside stage_lif_pos)
+ *         - FIRING                         (inside stage_lif_pos
+ *                                                  and stage_lif_neg)
  *
- *  S5   multiplexed scratch:
- *         - VBIP_GREATER_THAN_32           (inside stage_gain_control)
- *         - FIRING_AND_IS_PE               (inside stage_lif_pos; also held until
- *                                           the display block reads it)
+ *  S5   - VBIP_GREATER_THAN_32           (inside stage_gain_control)
+ *       - FIRING_AND_IS_PE               (set by stage_lif_pos; HELD until
+ *                                          the display block reads it as the
+ *                                          ON spike map.)
  *
- *  S6   VBIP_GREATER_THAN_16               (inside stage_gain_control only)
+ *  S6   - VBIP_GREATER_THAN_16           (inside stage_gain_control)
+ *       - FIRING_NEG_AND_IS_PE           (set by stage_lif_neg; HELD until
+ *                                          the display block reads it as the
+ *                                          OFF spike map.)
  *
- *  IMPORTANT: S4/S5/S6 aliases share the same physical DREG. They never
- *  overlap in time within a frame because stage_gain_control fully consumes
- *  the Q-bits before stage_lif_pos starts. Be careful when adding new stages.
+ *  IMPORTANT: S4/S5/S6 aliases share the same physical DREG. Lifetimes do
+ *  NOT overlap by design - stage_gain_control fully consumes the Q-bits
+ *  before stage_lif_pos starts, and stage_lif_pos's FIRING flag is no longer
+ *  needed once FIRING_AND_IS_PE is latched into S5. Be careful when adding
+ *  new stages.
  *
  *****************************************************************************
  *
@@ -119,11 +130,17 @@
  *   stage_gain_control       -- bipolar contrast gain control (off by default
  *                               on hardware: noise accumulation is brutal)
  *   stage_hpf2               -- T_2 HPF (uses STO2.C as prev I_OPL)
- *   stage_nonlinearity_N_pos     -- max(0,x) + I_bias
- *   stage_lif_pos                -- LIF on STO2.D; FIRING_AND_IS_PE = spike map
+ *   store_I_bip              -- hold the signed I_bip in STO2.A for the OFF channel
+ *   stage_nonlinearity_N_pos -- max(0, +I_bip) + I_bias
+ *   stage_lif_pos            -- ON  LIF on STO2.D; S5 = ON  spike map
+ *   restore_I_bip_and_prepare-- reload I_bip from STO2.A into PE.A, then negate
+ *   stage_nonlinearity_N_neg -- max(0, -I_bip) + I_bias
+ *   stage_lif_neg            -- OFF LIF on STO2.E; S6 = OFF spike map
  *
  * Each stage is gated by its own GUI toggle. Disable stages from the GUI to
- * leave PE.A holding an intermediate value, then enable `display_A` to probe.
+ * leave the pipeline state where you want it; the 4-panel display block at
+ * the end of each frame shows ON / OFF V_LIF membranes (top row) and ON /
+ * OFF spike maps (bottom row).
  *
  *****************************************************************************
  *
@@ -163,11 +180,14 @@ using namespace SCAMP5_PE;
 // within a frame (see header). Adding new stages? Re-check the lifetime
 // table before reusing S4-S6.
 #define I_OPL_SMALLER_THAN_THRESHOLD S4   // stage_amplify_opl
-#define N_NEGATIVE                   S4   // stage_nonlinearity_N_pos
-#define FIRING                       S4   // stage_lif_pos (raw threshold flag)
-#define FIRING_AND_IS_PE             S5   // stage_lif_pos (spike map at PE cells)
-                                          //   -- displayed as the event output
-#define FIRING_NEG_AND_IS_PE         S6   // stage lif_neg ( spike map at PE cells)
+#define N_NEGATIVE                   S4   // stage_nonlinearity_N_pos & _N_neg
+#define FIRING                       S4   // stage_lif_pos and stage_lif_neg
+                                          //   (raw threshold FLAG copy)
+
+#define FIRING_AND_IS_PE             S5   // stage_lif_pos -> ON  spike map
+                                          //   HELD until display reads it
+#define FIRING_NEG_AND_IS_PE         S6   // stage_lif_neg -> OFF spike map
+                                          //   HELD until display reads it
 
 #define VBIP_GREATER_THAN_64 S4   // stage_gain_control (bit-plane for x1/2)
 #define VBIP_GREATER_THAN_32 S5   // stage_gain_control (bit-plane for x1/4)
@@ -182,12 +202,15 @@ using namespace SCAMP5_PE;
 #define BIPOLAR_REGISTER_STO1     E   // STO1.E - V_BIP  (bipolar membrane)
 #define BIPOLAR_LPF_REGISTER_STO2 B   // STO2.B - E_A LPF state in gain control
 #define PREV_FRAME_STO2           C   // STO2.C - previous I_OPL for 2nd HPF
-#define MEMBRANE_STO2             D   // STO2.D - V_LIF pos (LIF membrane voltage)
-#define MEMBRANE_NEG_STO2         E   // STO2.E - V_LIF neg (LIF membrane voltage) 
+#define MEMBRANE_STO2             D   // STO2.D - ON  V_LIF (LIF membrane, ON  channel)
+#define MEMBRANE_NEG_STO2         E   // STO2.E - OFF V_LIF (LIF membrane, OFF channel)
 
-#define BIPOLAR_CURRENT_INPUT       A // PE.A stores the bipolar current input 
-#define BIPOLAR_CURRENT_INPUT_SAVED A // STO2.A stores the I_{BIP} which is needed for 
-                                      // computation of negative stage of LIF
+// --- Intra-frame "I_bip hold" macros ----------------------------------------
+// These name the AREG slot used to park the signed I_bip between the ON and
+// OFF channel's LIF stages.  Both expand to `A`; combined with WHERE() they
+// target PE.A (BIPOLAR_CURRENT_INPUT) or STO2.A (BIPOLAR_CURRENT_INPUT_SAVED).
+#define BIPOLAR_CURRENT_INPUT       A // PE.A    - live signed I_bip
+#define BIPOLAR_CURRENT_INPUT_SAVED A // STO2.A  - parked signed I_bip between LIFs
 
 
 // --- Numeric constants -----------------------------------------------------
@@ -260,10 +283,18 @@ int add_leftovers_to_feedback      = 1;
 int compute_feedback_phase2        = 1;
 int apply_2nd_hpf                  = 1;
 int apply_N_func                   = 1;
-int compute_LIF                    = 0;
+int compute_LIF                    = 1;
 
-int display_A   = 0;   // show PE.A (after the pipeline finishes)
-int display_evn = 0;   // show FIRING_AND_IS_PE (the spike map)
+// 4-panel display layout (top: V_LIF membranes; bottom: spike maps):
+//
+//   (0,0) display_v_lif_on   ON  V_LIF       (0,1) display_v_lif_off   OFF V_LIF
+//   (1,0) display_evn_on     ON  spike map   (1,1) display_evn_off     OFF spike map
+//
+// Defaults: all four panels on, so the demo shows the full picture at boot.
+int display_v_lif_on  = 1;   // top-left  : ON  V_LIF membrane voltage  (STO2.D)
+int display_v_lif_off = 1;   // top-right : OFF V_LIF membrane voltage  (STO2.E)
+int display_evn_on    = 1;   // bot-left  : ON  spike map (FIRING_AND_IS_PE,    S5)
+int display_evn_off   = 1;   // bot-right : OFF spike map (FIRING_NEG_AND_IS_PE, S6)
 
 
 // ===========================================================================
@@ -1091,27 +1122,43 @@ inline void stage_hpf2()
     scamp5_kernel_end();
 }
 
-// The input to the LIF will be stored in the PE.A up to this point
-// We need to copy this input and we store it in the STO2.E : 
-// we will require it for the the negative part of the computation 
+// ---------------------------------------------------------------------------
+// store_I_bip / restore_I_bip_and_prepare  (OFF-channel scaffolding)
 //
-//  Basically the plan of action : 
-//  1. stage 1 -> 2 -> end result stored in PE.A 
-//  2. move PE.A to STO2.E
-//  3. compute the positive part of the LIF and generate events etc. 
-//  4. after that is done, return back the STO2.E to PE.A 
-//  5. invert it
-//  6. pretty much compute the same pipeline. 
-
-
+// The post-HPF2 signal (= I_bip, signed) is what feeds the ganglion stages.
+// To run BOTH the ON channel (operating on +I_bip) and the OFF channel
+// (operating on -I_bip), we need to preserve the signed value across the ON
+// channel's clobbering of PE.A. The plan of action is:
+//
+//   1. (stages up through HPF2 leave I_bip in PE.A)
+//   2. store_I_bip()                : copy PE.A into an STO2 hold slot
+//   3. stage_nonlinearity_N_pos()
+//      stage_lif_pos()              : runs the ON channel, clobbers PE.A
+//   4. restore_I_bip_and_prepare()  : reload the held I_bip into PE.A,
+//                                     then negate it in-place
+//   5. stage_nonlinearity_N_neg()
+//      stage_lif_neg()              : runs the OFF channel
+//
+// STORAGE SLOT FOR THE HOLD:
+//
+//   `BIPOLAR_CURRENT_INPUT_SAVED` is defined as the AREG letter `A`. Combined
+//   with `WHERE(DREG_STO2)` this targets STO2.A. So the I_bip hold lives in
+//   *STO2.A*, not STO2.E (despite some inline comments below that say
+//   "STO2.E"). STO2.A is normally the transient blur replica and is safe
+//   between the LIF stages because no spatial-blur stage runs in that
+//   window.
+//
+//   NB: STO2.E is the persistent OFF-channel V_LIF membrane and is
+//   read+written by stage_lif_neg; it must NOT be reused as the I_bip hold.
+// ---------------------------------------------------------------------------
 inline void store_I_bip()
 {
     scamp5_kernel_begin();
         WHERE(DREG_PE);
-        bus(NEWS, BIPOLAR_CURRENT_INPUT);     // PE.NEWS = PE.A (I_bip)
+        bus(NEWS, BIPOLAR_CURRENT_INPUT);     // PE.NEWS = -PE.A + offset
 
         WHERE(DREG_STO2);
-        bus(BIPOLAR_CURRENT_INPUT_SAVED, XN); // STO2.E := PE.A
+        bus(BIPOLAR_CURRENT_INPUT_SAVED, XN); // STO2.A := PE.A  (the I_bip hold)
     scamp5_kernel_end();
 }
 
@@ -1283,157 +1330,21 @@ void stage_lif_pos()
 }
 
 
+// Pair of store_I_bip(). Reads the held I_bip back into PE.A from STO2.A,
+// then negates PE.A in place so the OFF-channel stages see -I_bip.
 inline void restore_I_bip_and_prepare()
 {
     scamp5_kernel_begin();
         WHERE(DREG_STO2);
-        bus(NEWS, BIPOLAR_CURRENT_INPUT_SAVED);     // PE.NEWS = PE.A (I_bip)
+        bus(NEWS, BIPOLAR_CURRENT_INPUT_SAVED);     // STO2.NEWS = -STO2.A + offset
 
         WHERE(DREG_PE);
-        bus(BIPOLAR_CURRENT_INPUT, XS); // STO2.E := PE.A
+        bus(BIPOLAR_CURRENT_INPUT, XS);             // PE.A = STO2.A = held I_bip
 
-        // now that we have the current back ,we have to invert it
-        // and save it to to A 
-        neg(C, BIPOLAR_CURRENT_INPUT);
-        mov(BIPOLAR_CURRENT_INPUT, C);
-    scamp5_kernel_end();
-}
-
-
-// ---------------------------------------------------------------------------
-// stage_lif_pos   (Leaky Integrate & Fire ganglion neuron)
-//
-//   One Euler step:
-//       V_LIF <- V_LIF + p1 * I_gang - p2 * |V_LIF - u_rest|
-//       spike := (V_LIF > U_thresh)
-//       if spike: V_LIF -= U_thresh   (subtract-threshold reset)
-//
-//   STATE TOUCHED:
-//     STO2.D (V_LIF / MEMBRANE_STO2)  : read at start, rewritten at end
-//     PE.A,B,C,D,E,F                  : all clobbered as scratch
-//     DREG S4 (FIRING)                : raw spike flag (transient)
-//     DREG S5 (FIRING_AND_IS_PE)      : spike map restricted to PE cells;
-//                                        held until the display block reads it
-//
-//   On entry: PE.A = I_gang (output of stage_nonlinearity_N_pos).
-//   On exit : PE.A = post-reset V_LIF ; STO2.D updated; S5 = spike map.
-// ---------------------------------------------------------------------------
-void stage_lif_pos()
-{
-    if (!compute_LIF) return;
-
-    // ---- PE.C := p1 * PE.A  (MAC with multiplicand in A, accumulator in C)
-    // No b_0 = 0 prefix here: this is a direct gain multiplication, not an
-    // IIR LPF. p1 is supplied with the desired weight directly.
-    scamp5_load_in(F, 0);
-    scamp5_kernel_begin();
-        WHERE(DREG_PE);
-        mov(C, F);                           // PE.C = 0 (accumulator)
-    scamp5_kernel_end();
-
-    {
-        int bit = 1 << (p1.no_bits - 1);
-        while (bit)
-        {
-            if (bit & p1.value)
-            {
-                scamp5_kernel_begin();
-                add(C, C, A);
-                diva(A, E, F);
-                scamp5_kernel_end();
-            }
-            else
-            {
-                scamp5_kernel_begin();
-                diva(A, E, F);
-                scamp5_kernel_end();
-            }
-            bit >>= 1;
-        }
-    }
-
-    scamp5_kernel_begin();
-        mov(A, C);                           // PE.A = p1 * I_gang
-    scamp5_kernel_end();
-
-    // ---- PE.B := V_LIF  (load from STO2.D via south neighbor) ----------
-    scamp5_kernel_begin();
-        WHERE(DREG_STO2);
-        bus(NEWS, MEMBRANE_STO2);            // STO2.NEWS = -STO2.D + offset
-
-        WHERE(DREG_PE);
-        bus(B, XS);                          // PE.B = STO2.D = V_LIF
-    scamp5_kernel_end();
-
-    // ---- PE.C := |V_LIF - u_rest|  (uses PE.F as temp) -----------------
-    scamp5_load_in(F, u_rest);
-    scamp5_kernel_begin();
-        sub(C, B, F);                        // PE.C = V_LIF - u_rest
-        mov(F, C);
-        abs(F, F);                           // PE.F = |V_LIF - u_rest|
-
-        WHERE(DREG_PE);
-        mov(C, F);                           // PE.C = |V_LIF - u_rest|
-    scamp5_kernel_end();
-
-    // ---- PE.D := p2 * |V_LIF - u_rest|  (MAC: multiplicand C, accumulator D)
-    scamp5_load_in(F, 0);
-    scamp5_kernel_begin();
-        WHERE(DREG_PE);
-        mov(D, F);                           // PE.D = 0
-    scamp5_kernel_end();
-
-    {
-        int bit = 1 << (p2.no_bits - 1);
-        while (bit)
-        {
-            if (bit & p2.value)
-            {
-                scamp5_kernel_begin();
-                add(D, D, C);
-                diva(C, E, F);
-                scamp5_kernel_end();
-            }
-            else
-            {
-                scamp5_kernel_begin();
-                diva(C, E, F);
-                scamp5_kernel_end();
-            }
-            bit >>= 1;
-        }
-    }
-
-    // ---- Combine: V_LIF_new = V_LIF + p1*I_gang - p2 * |V_LIF - u_rest| --
-    // PE.A : p1 * I_gang
-    // PE.B : V_LIF
-    // PE.D : p2 * |V_LIF - u_rest|
-    scamp5_kernel_begin();
-        add(A, A, B);                        // PE.A = p1*I_gang + V_LIF
-        sub(A, A, D);                        // PE.A = V_LIF_new
-    scamp5_kernel_end();
-
-    // ---- Threshold + subtract-threshold reset --------------------------
-    scamp5_load_in(F, U_thresh);
-    scamp5_kernel_begin();
-        WHERE(DREG_PE);
-        sub(B, A, F);                                  // PE.B = V_LIF_new - threshold
-
-        where(B);                                      // FLAG = (PE.B > 0)
-        MOV(FIRING, FLAG);                             // S4 = raw spike flag
-        AND(FIRING_AND_IS_PE, FIRING, DREG_PE);        // S5 = spike map at PEs
-
-        WHERE(FIRING_AND_IS_PE);
-        mov(A, B);                                     // V_LIF -= threshold on spike
-    scamp5_kernel_end();
-
-    // ---- Persist new V_LIF back to STO2.D ------------------------------
-    scamp5_kernel_begin();
-        WHERE(DREG_PE);
-        bus(NEWS, A);                                  // PE.NEWS = -PE.A + offset
-
-        WHERE(DREG_STO2);
-        bus(MEMBRANE_STO2, XN);                        // STO2.D := PE.A
+        // Now invert PE.A in place: PE.A := -PE.A.  (neg(X,Y) requires
+        // X != Y so we go via PE.C as a temporary.)
+        neg(C, BIPOLAR_CURRENT_INPUT);              // PE.C = -PE.A
+        mov(BIPOLAR_CURRENT_INPUT, C);              // PE.A = PE.C = -I_bip
     scamp5_kernel_end();
 }
 
@@ -1470,22 +1381,29 @@ inline void stage_nonlinearity_N_neg()
 
 
 // ---------------------------------------------------------------------------
-// stage_lif_neg   (Leaky Integrate & Fire ganglion neuron)
+// stage_lif_neg   (Leaky Integrate & Fire ganglion neuron - OFF channel)
 //
-//   One Euler step:
-//       V_LIF <- V_LIF + p1 * I_gang - p2 * |V_LIF - u_rest|
-//       spike := (V_LIF > U_thresh)
-//       if spike: V_LIF -= U_thresh   (subtract-threshold reset)
+//   Same Euler step as stage_lif_pos, but operating on the negated
+//   bipolar-current signal and using the OFF-channel membrane state.
+//
+//       V_LIF_neg <- V_LIF_neg + p1 * I_gang_neg
+//                                - p2 * |V_LIF_neg - u_rest|
+//       spike := (V_LIF_neg > U_thresh)
+//       if spike: V_LIF_neg -= U_thresh
 //
 //   STATE TOUCHED:
-//     STO2.D (V_LIF / MEMBRANE_STO2)  : read at start, rewritten at end
+//     STO2.E (V_LIF_neg / MEMBRANE_NEG_STO2) : read at start, rewritten at end
+//                                              -- NOT STO2.D (that is the ON
+//                                              channel's membrane and must
+//                                              NOT be touched here).
 //     PE.A,B,C,D,E,F                  : all clobbered as scratch
 //     DREG S4 (FIRING)                : raw spike flag (transient)
-//     DREG S5 (FIRING_AND_IS_PE)      : spike map restricted to PE cells;
-//                                        held until the display block reads it
+//     DREG S6 (FIRING_NEG_AND_IS_PE)  : OFF-channel spike map restricted to
+//                                        PE cells; held until the display
+//                                        block reads it.
 //
-//   On entry: PE.A = I_gang (output of stage_nonlinearity_N_pos).
-//   On exit : PE.A = post-reset V_LIF ; STO2.D updated; S5 = spike map.
+//   On entry: PE.A = I_gang_neg (output of stage_nonlinearity_N_neg).
+//   On exit : PE.A = post-reset V_LIF_neg ; STO2.E updated; S6 = spike map.
 // ---------------------------------------------------------------------------
 void stage_lif_neg()
 {
@@ -1522,16 +1440,19 @@ void stage_lif_neg()
     }
 
     scamp5_kernel_begin();
-        mov(A, C);                           // PE.A = p1 * I_gang
+        mov(A, C);                           // PE.A = p1 * I_gang_neg
     scamp5_kernel_end();
 
-    // ---- PE.B := V_LIF  (load from STO2.D via south neighbor) ----------
+    // ---- PE.B := V_LIF_neg  (load from STO2.E via south neighbor) ------
+    // CRITICAL: must read MEMBRANE_NEG_STO2 (STO2.E), NOT MEMBRANE_STO2
+    // (STO2.D). Otherwise this stage would consume the ON channel's
+    // membrane as its starting point and entangle the two channels.
     scamp5_kernel_begin();
         WHERE(DREG_STO2);
-        bus(NEWS, MEMBRANE_STO2);            // STO2.NEWS = -STO2.D + offset
+        bus(NEWS, MEMBRANE_NEG_STO2);        // STO2.NEWS = -STO2.E + offset
 
         WHERE(DREG_PE);
-        bus(B, XS);                          // PE.B = STO2.D = V_LIF
+        bus(B, XS);                          // PE.B = STO2.E = V_LIF_neg
     scamp5_kernel_end();
 
     // ---- PE.C := |V_LIF - u_rest|  (uses PE.F as temp) -----------------
@@ -1606,23 +1527,9 @@ void stage_lif_neg()
     scamp5_kernel_end();
 }
 
-inline void move_LIF_for_displays()
-{
-    scamp5_kernel_begin();
-        WHERE(DREG_PE);
-            // move the OFF events to B 
-            mov(B, A);
-
-        // restore the map from ON to A        
-        WHERE(DREG_STO2);
-            bus(NEWS, MEMBRANE_STO2);   // take the membrane from STO2.D
-
-        WHERE(DREG_PE);
-            bus(A, XS);                 // move it to PE.A
-    scamp5_kernel_end();
-
-}
-
+// (Removed: the standalone move_LIF_for_displays helper. output_displays()
+//  now loads the V_LIF membranes itself, one panel at a time, which is
+//  cleaner than juggling PE.A and PE.B before the display block runs.)
 
 
 // ===========================================================================
@@ -1697,11 +1604,10 @@ void probe_for(int reg, int display)
 // ---------------------------------------------------------------------------
 struct gui_displays
 {
-    vs_handle display_00;
-    vs_handle display_01;
-    vs_handle display_10;
-    vs_handle display_11;
-    vs_handle display_12;
+    vs_handle v_lif_on;    // top-left  (0,0): ON  V_LIF membrane (STO2.D)
+    vs_handle v_lif_off;   // top-right (0,1): OFF V_LIF membrane (STO2.E)
+    vs_handle evn_on;      // bot-left  (1,0): ON  spike map      (S5)
+    vs_handle evn_off;     // bot-right (1,1): OFF spike map      (S6)
 };
 
 inline gui_displays setup_gui_controls()
@@ -1709,11 +1615,10 @@ inline gui_displays setup_gui_controls()
     vs_gui_set_info(VS_M0_PROJECT_INFO_STRING);
 
     gui_displays dpy;
-    dpy.display_00 = vs_gui_add_display("display_00", 0, 0);
-    dpy.display_01 = vs_gui_add_display("display_01", 0, 1);
-    dpy.display_10 = vs_gui_add_display("display_10", 1, 0);
-    dpy.display_11 = vs_gui_add_display("display_11", 1, 1);
-    dpy.display_12 = vs_gui_add_display("display_12", 1, 2);
+    dpy.v_lif_on  = vs_gui_add_display("ON  V_LIF",  0, 0);
+    dpy.v_lif_off = vs_gui_add_display("OFF V_LIF",  0, 1);
+    dpy.evn_on    = vs_gui_add_display("ON  events", 1, 0);
+    dpy.evn_off   = vs_gui_add_display("OFF events", 1, 1);
 
     // -- pipeline-stage toggles --
     vs_gui_add_slider("apply_blur_1",                   0,   1, apply_blur_1,                   &apply_blur_1);
@@ -1738,9 +1643,11 @@ inline gui_displays setup_gui_controls()
     vs_gui_add_slider("u_rest",   -128, 127, u_rest,   &u_rest);
     vs_gui_add_slider("U_thresh", -128, 127, U_thresh, &U_thresh);
 
-    // -- display selectors --
-    vs_gui_add_slider("display A",      0, 1, display_A,   &display_A);
-    vs_gui_add_slider("display events", 0, 1, display_evn, &display_evn);
+    // -- display selectors (one toggle per panel) --
+    vs_gui_add_slider("display ON  V_LIF",  0, 1, display_v_lif_on,  &display_v_lif_on);
+    vs_gui_add_slider("display OFF V_LIF",  0, 1, display_v_lif_off, &display_v_lif_off);
+    vs_gui_add_slider("display ON  events", 0, 1, display_evn_on,    &display_evn_on);
+    vs_gui_add_slider("display OFF events", 0, 1, display_evn_off,   &display_evn_off);
 
     // -- |V_BIP| amplification and gain offset --
     vs_gui_add_slider("amplify", 0, 4, amplify_iters, &amplify_iters);
@@ -1799,34 +1706,66 @@ inline void init_aregs_to_zero()
 // ===========================================================================
 // DISPLAY OUTPUT
 // ===========================================================================
-// Display block. NOTE: by the time this runs, PE.A has been written and
-// rewritten by many stages. There is no persistent slot for the original
-// "input" or "I_OPL" - those values are gone. To probe a specific
-// intermediate state, disable later stages from the GUI so PE.A is left
-// holding the value of interest, then enable display_A.
+// 4-panel layout:
 //
-// FIRING_AND_IS_PE is a DREG (1-bit per cell); scamp5_output_image accepts
-// both AREG and DREG inputs.
+//   ┌───────────────────────┬───────────────────────┐
+//   │  ON  V_LIF (STO2.D)   │  OFF V_LIF (STO2.E)   │
+//   │      (top-left)       │      (top-right)      │
+//   ├───────────────────────┼───────────────────────┤
+//   │  ON  events (S5)      │  OFF events (S6)      │
+//   │      (bot-left)       │      (bot-right)      │
+//   └───────────────────────┴───────────────────────┘
+//
+// Order of operations:
+//   1. Push the two DREG spike maps first - they read S5/S6 without
+//      touching any AREG and so cannot be disturbed by the V_LIF loads.
+//   2. Load STO2.D into PE.A, replicate across the superpixel, output as
+//      ON V_LIF.  This destroys PE.A and STO*.A but the frame is over.
+//   3. Load STO2.E into PE.A, replicate, output as OFF V_LIF.
+//
+// FIRING_AND_IS_PE (S5) and FIRING_NEG_AND_IS_PE (S6) are DREGs;
+// scamp5_output_image() accepts both AREG and DREG inputs.
 // ---------------------------------------------------------------------------
 inline void output_displays(const gui_displays& dpy)
 {
     if (!vs_gui_is_on()) return;
 
-    if (display_A)
+    // ---- Spike maps (bottom row) --------------------------------------
+    if (display_evn_on)
+        scamp5_output_image(FIRING_AND_IS_PE,     dpy.evn_on);
+
+    if (display_evn_off)
+        scamp5_output_image(FIRING_NEG_AND_IS_PE, dpy.evn_off);
+
+    // ---- ON V_LIF membrane (top-left) ---------------------------------
+    // Load STO2.D into PE.A via south neighbor, then replicate across the
+    // superpixel so the displayed image is uniform per 2x2 block.
+    if (display_v_lif_on)
     {
-        // fill_A replicates PE.A across the superpixel so the output image
-        // shows the same value at all 4 cells in each 2x2 block (otherwise
-        // STO[1-3].A would alternate visible garbage with PE.A's value).
+        scamp5_kernel_begin();
+            WHERE(DREG_STO2);
+            bus(NEWS, MEMBRANE_STO2);    // STO2.NEWS = -STO2.D + offset
+
+            WHERE(DREG_PE);
+            bus(A, XS);                  // PE.A = STO2.D = V_LIF_pos
+        scamp5_kernel_end();
         fill_A();
-        scamp5_output_image(A, dpy.display_00);
+        scamp5_output_image(A, dpy.v_lif_on);
     }
 
-    if (display_evn)
-        scamp5_output_image(FIRING_AND_IS_PE, dpy.display_10);
+    // ---- OFF V_LIF membrane (top-right) -------------------------------
+    if (display_v_lif_off)
+    {
+        scamp5_kernel_begin();
+            WHERE(DREG_STO2);
+            bus(NEWS, MEMBRANE_NEG_STO2); // STO2.NEWS = -STO2.E + offset
 
-    // The other display widgets (display_01, _11, _12) are left blank and
-    // available for ad-hoc debugging. Wire up probe_for(reg, display_*) here
-    // when you want to inspect a specific AREG.
+            WHERE(DREG_PE);
+            bus(A, XS);                   // PE.A = STO2.E = V_LIF_neg
+        scamp5_kernel_end();
+        fill_A();
+        scamp5_output_image(A, dpy.v_lif_off);
+    }
 }
 
 // ===========================================================================
