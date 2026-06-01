@@ -60,13 +60,17 @@
  *      C             PREV_FRAME for the 2nd HPF (the previous I_OPL frame)
  *                    macro PREV_FRAME_STO2 = C
  *                    --> read+written by stage_hpf2()
- *      D             V_LIF membrane voltage (ganglion LIF state)
+ *      D             pos  V_LIF membrane voltage (ganglion LIF state)
  *                    macro MEMBRANE_STO2 = D
- *                    --> read+written by stage_lif()
- *      E,F           (free)
+ *                    --> read+written by stage_lif_pos()
+ *      E             neg V_LIF membrane voltage (ganglion LIF state)
+ *                    macro MEMBRANE_STO2 = D
+ *                    --> read+written by stage_lif_pos()
+ *      F             (free)
  *
  *  STO3   (diagonal)      currently only used as a blur replica target
  *      A,F           [transient] blur replicas of PE.A / PE.F
+ *      
  *      B,C,D,E       (free)
  *
  *  Persistent AREG usage : 7 of 18 STO slots (~39%).
@@ -83,20 +87,20 @@
  *
  *  S4   multiplexed scratch (alive only briefly inside one stage at a time):
  *         - I_OPL_SMALLER_THAN_THRESHOLD   (inside stage_amplify_opl)
- *         - N_NEGATIVE                     (inside stage_nonlinearity_N)
+ *         - N_NEGATIVE                     (inside stage_nonlinearity_N_pos)
  *         - VBIP_GREATER_THAN_64           (inside stage_gain_control)
- *         - FIRING                         (inside stage_lif)
+ *         - FIRING                         (inside stage_lif_pos)
  *
  *  S5   multiplexed scratch:
  *         - VBIP_GREATER_THAN_32           (inside stage_gain_control)
- *         - FIRING_AND_IS_PE               (inside stage_lif; also held until
+ *         - FIRING_AND_IS_PE               (inside stage_lif_pos; also held until
  *                                           the display block reads it)
  *
  *  S6   VBIP_GREATER_THAN_16               (inside stage_gain_control only)
  *
  *  IMPORTANT: S4/S5/S6 aliases share the same physical DREG. They never
  *  overlap in time within a frame because stage_gain_control fully consumes
- *  the Q-bits before stage_lif starts. Be careful when adding new stages.
+ *  the Q-bits before stage_lif_pos starts. Be careful when adding new stages.
  *
  *****************************************************************************
  *
@@ -115,8 +119,8 @@
  *   stage_gain_control       -- bipolar contrast gain control (off by default
  *                               on hardware: noise accumulation is brutal)
  *   stage_hpf2               -- T_2 HPF (uses STO2.C as prev I_OPL)
- *   stage_nonlinearity_N     -- max(0,x) + I_bias
- *   stage_lif                -- LIF on STO2.D; FIRING_AND_IS_PE = spike map
+ *   stage_nonlinearity_N_pos     -- max(0,x) + I_bias
+ *   stage_lif_pos                -- LIF on STO2.D; FIRING_AND_IS_PE = spike map
  *
  * Each stage is gated by its own GUI toggle. Disable stages from the GUI to
  * leave PE.A holding an intermediate value, then enable `display_A` to probe.
@@ -136,12 +140,6 @@
  *   bus(X,Y)        requires  X != Y       (note: bus INVERTS: X = -Y + offset
  *                                          so two bus operations compose into
  *                                          a copy with offset cancellation)
- *
- *   scamp5_load_in(X, val) writes X in EVERY cell (PE and all STO cells).
- *   This means you cannot use an STO cell's F register as a between-stage
- *   hold if any stage in between calls scamp5_load_in(F, ...) - F in every
- *   STO will be clobbered. The same caution applies to any AREG used as a
- *   load_in target.
  *
  *****************************************************************************/
 
@@ -165,10 +163,11 @@ using namespace SCAMP5_PE;
 // within a frame (see header). Adding new stages? Re-check the lifetime
 // table before reusing S4-S6.
 #define I_OPL_SMALLER_THAN_THRESHOLD S4   // stage_amplify_opl
-#define N_NEGATIVE                   S4   // stage_nonlinearity_N
-#define FIRING                       S4   // stage_lif (raw threshold flag)
-#define FIRING_AND_IS_PE             S5   // stage_lif (spike map at PE cells)
+#define N_NEGATIVE                   S4   // stage_nonlinearity_N_pos
+#define FIRING                       S4   // stage_lif_pos (raw threshold flag)
+#define FIRING_AND_IS_PE             S5   // stage_lif_pos (spike map at PE cells)
                                           //   -- displayed as the event output
+#define FIRING_NEG_AND_IS_PE         S6   // stage lif_neg ( spike map at PE cells)
 
 #define VBIP_GREATER_THAN_64 S4   // stage_gain_control (bit-plane for x1/2)
 #define VBIP_GREATER_THAN_32 S5   // stage_gain_control (bit-plane for x1/4)
@@ -183,7 +182,13 @@ using namespace SCAMP5_PE;
 #define BIPOLAR_REGISTER_STO1     E   // STO1.E - V_BIP  (bipolar membrane)
 #define BIPOLAR_LPF_REGISTER_STO2 B   // STO2.B - E_A LPF state in gain control
 #define PREV_FRAME_STO2           C   // STO2.C - previous I_OPL for 2nd HPF
-#define MEMBRANE_STO2             D   // STO2.D - V_LIF  (LIF membrane voltage)
+#define MEMBRANE_STO2             D   // STO2.D - V_LIF pos (LIF membrane voltage)
+#define MEMBRANE_NEG_STO2         E   // STO2.E - V_LIF neg (LIF membrane voltage) 
+
+#define BIPOLAR_CURRENT_INPUT       A // PE.A stores the bipolar current input 
+#define BIPOLAR_CURRENT_INPUT_SAVED A // STO2.A stores the I_{BIP} which is needed for 
+                                      // computation of negative stage of LIF
+
 
 // --- Numeric constants -----------------------------------------------------
 #define BLUR_ITERATIONS         1   // gauss() iterations for OPL spatial blurs
@@ -1086,14 +1091,38 @@ inline void stage_hpf2()
     scamp5_kernel_end();
 }
 
+// The input to the LIF will be stored in the PE.A up to this point
+// We need to copy this input and we store it in the STO2.E : 
+// we will require it for the the negative part of the computation 
+//
+//  Basically the plan of action : 
+//  1. stage 1 -> 2 -> end result stored in PE.A 
+//  2. move PE.A to STO2.E
+//  3. compute the positive part of the LIF and generate events etc. 
+//  4. after that is done, return back the STO2.E to PE.A 
+//  5. invert it
+//  6. pretty much compute the same pipeline. 
+
+
+inline void store_I_bip()
+{
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        bus(NEWS, BIPOLAR_CURRENT_INPUT);     // PE.NEWS = PE.A (I_bip)
+
+        WHERE(DREG_STO2);
+        bus(BIPOLAR_CURRENT_INPUT_SAVED, XN); // STO2.E := PE.A
+    scamp5_kernel_end();
+}
+
 // ---------------------------------------------------------------------------
-// stage_nonlinearity_N   (N(x) = max(0, x) + I_bias)
+// stage_nonlinearity_N_pos   (N(x) = max(0, x) + I_bias)
 //   Half-wave rectification followed by a bias add.
 //
 //   STATE TOUCHED: PE.A (modified), PE.F (scratch),
 //                  DREG S4 (N_NEGATIVE - the rectification mask).
 // ---------------------------------------------------------------------------
-inline void stage_nonlinearity_N()
+inline void stage_nonlinearity_N_pos()
 {
     if (!apply_N_func) return;
 
@@ -1117,7 +1146,7 @@ inline void stage_nonlinearity_N()
 }
 
 // ---------------------------------------------------------------------------
-// stage_lif   (Leaky Integrate & Fire ganglion neuron)
+// stage_lif_pos   (Leaky Integrate & Fire ganglion neuron)
 //
 //   One Euler step:
 //       V_LIF <- V_LIF + p1 * I_gang - p2 * |V_LIF - u_rest|
@@ -1131,10 +1160,10 @@ inline void stage_nonlinearity_N()
 //     DREG S5 (FIRING_AND_IS_PE)      : spike map restricted to PE cells;
 //                                        held until the display block reads it
 //
-//   On entry: PE.A = I_gang (output of stage_nonlinearity_N).
+//   On entry: PE.A = I_gang (output of stage_nonlinearity_N_pos).
 //   On exit : PE.A = post-reset V_LIF ; STO2.D updated; S5 = spike map.
 // ---------------------------------------------------------------------------
-void stage_lif()
+void stage_lif_pos()
 {
     if (!compute_LIF) return;
 
@@ -1252,6 +1281,348 @@ void stage_lif()
         bus(MEMBRANE_STO2, XN);                        // STO2.D := PE.A
     scamp5_kernel_end();
 }
+
+
+inline void restore_I_bip_and_prepare()
+{
+    scamp5_kernel_begin();
+        WHERE(DREG_STO2);
+        bus(NEWS, BIPOLAR_CURRENT_INPUT_SAVED);     // PE.NEWS = PE.A (I_bip)
+
+        WHERE(DREG_PE);
+        bus(BIPOLAR_CURRENT_INPUT, XS); // STO2.E := PE.A
+
+        // now that we have the current back ,we have to invert it
+        // and save it to to A 
+        neg(C, BIPOLAR_CURRENT_INPUT);
+        mov(BIPOLAR_CURRENT_INPUT, C);
+    scamp5_kernel_end();
+}
+
+
+// ---------------------------------------------------------------------------
+// stage_lif_pos   (Leaky Integrate & Fire ganglion neuron)
+//
+//   One Euler step:
+//       V_LIF <- V_LIF + p1 * I_gang - p2 * |V_LIF - u_rest|
+//       spike := (V_LIF > U_thresh)
+//       if spike: V_LIF -= U_thresh   (subtract-threshold reset)
+//
+//   STATE TOUCHED:
+//     STO2.D (V_LIF / MEMBRANE_STO2)  : read at start, rewritten at end
+//     PE.A,B,C,D,E,F                  : all clobbered as scratch
+//     DREG S4 (FIRING)                : raw spike flag (transient)
+//     DREG S5 (FIRING_AND_IS_PE)      : spike map restricted to PE cells;
+//                                        held until the display block reads it
+//
+//   On entry: PE.A = I_gang (output of stage_nonlinearity_N_pos).
+//   On exit : PE.A = post-reset V_LIF ; STO2.D updated; S5 = spike map.
+// ---------------------------------------------------------------------------
+void stage_lif_pos()
+{
+    if (!compute_LIF) return;
+
+    // ---- PE.C := p1 * PE.A  (MAC with multiplicand in A, accumulator in C)
+    // No b_0 = 0 prefix here: this is a direct gain multiplication, not an
+    // IIR LPF. p1 is supplied with the desired weight directly.
+    scamp5_load_in(F, 0);
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        mov(C, F);                           // PE.C = 0 (accumulator)
+    scamp5_kernel_end();
+
+    {
+        int bit = 1 << (p1.no_bits - 1);
+        while (bit)
+        {
+            if (bit & p1.value)
+            {
+                scamp5_kernel_begin();
+                add(C, C, A);
+                diva(A, E, F);
+                scamp5_kernel_end();
+            }
+            else
+            {
+                scamp5_kernel_begin();
+                diva(A, E, F);
+                scamp5_kernel_end();
+            }
+            bit >>= 1;
+        }
+    }
+
+    scamp5_kernel_begin();
+        mov(A, C);                           // PE.A = p1 * I_gang
+    scamp5_kernel_end();
+
+    // ---- PE.B := V_LIF  (load from STO2.D via south neighbor) ----------
+    scamp5_kernel_begin();
+        WHERE(DREG_STO2);
+        bus(NEWS, MEMBRANE_STO2);            // STO2.NEWS = -STO2.D + offset
+
+        WHERE(DREG_PE);
+        bus(B, XS);                          // PE.B = STO2.D = V_LIF
+    scamp5_kernel_end();
+
+    // ---- PE.C := |V_LIF - u_rest|  (uses PE.F as temp) -----------------
+    scamp5_load_in(F, u_rest);
+    scamp5_kernel_begin();
+        sub(C, B, F);                        // PE.C = V_LIF - u_rest
+        mov(F, C);
+        abs(F, F);                           // PE.F = |V_LIF - u_rest|
+
+        WHERE(DREG_PE);
+        mov(C, F);                           // PE.C = |V_LIF - u_rest|
+    scamp5_kernel_end();
+
+    // ---- PE.D := p2 * |V_LIF - u_rest|  (MAC: multiplicand C, accumulator D)
+    scamp5_load_in(F, 0);
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        mov(D, F);                           // PE.D = 0
+    scamp5_kernel_end();
+
+    {
+        int bit = 1 << (p2.no_bits - 1);
+        while (bit)
+        {
+            if (bit & p2.value)
+            {
+                scamp5_kernel_begin();
+                add(D, D, C);
+                diva(C, E, F);
+                scamp5_kernel_end();
+            }
+            else
+            {
+                scamp5_kernel_begin();
+                diva(C, E, F);
+                scamp5_kernel_end();
+            }
+            bit >>= 1;
+        }
+    }
+
+    // ---- Combine: V_LIF_new = V_LIF + p1*I_gang - p2 * |V_LIF - u_rest| --
+    // PE.A : p1 * I_gang
+    // PE.B : V_LIF
+    // PE.D : p2 * |V_LIF - u_rest|
+    scamp5_kernel_begin();
+        add(A, A, B);                        // PE.A = p1*I_gang + V_LIF
+        sub(A, A, D);                        // PE.A = V_LIF_new
+    scamp5_kernel_end();
+
+    // ---- Threshold + subtract-threshold reset --------------------------
+    scamp5_load_in(F, U_thresh);
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        sub(B, A, F);                                  // PE.B = V_LIF_new - threshold
+
+        where(B);                                      // FLAG = (PE.B > 0)
+        MOV(FIRING, FLAG);                             // S4 = raw spike flag
+        AND(FIRING_AND_IS_PE, FIRING, DREG_PE);        // S5 = spike map at PEs
+
+        WHERE(FIRING_AND_IS_PE);
+        mov(A, B);                                     // V_LIF -= threshold on spike
+    scamp5_kernel_end();
+
+    // ---- Persist new V_LIF back to STO2.D ------------------------------
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        bus(NEWS, A);                                  // PE.NEWS = -PE.A + offset
+
+        WHERE(DREG_STO2);
+        bus(MEMBRANE_STO2, XN);                        // STO2.D := PE.A
+    scamp5_kernel_end();
+}
+
+
+// ---------------------------------------------------------------------------
+// stage_nonlinearity_N_neg   (N(x) = max(0, x) + I_bias)
+//   Half-wave rectification followed by a bias add.
+//
+//   STATE TOUCHED: PE.A (modified), PE.F (scratch),
+//                  DREG S4 (N_NEGATIVE - the rectification mask).
+// ---------------------------------------------------------------------------
+inline void stage_nonlinearity_N_neg()
+{
+    if (!apply_N_func) return;
+
+    scamp5_load_in(F, 0);
+
+    scamp5_kernel_begin();
+        where(A);                            // FLAG = (PE.A > 0)
+        NOT(N_NEGATIVE, FLAG);               // N_NEGATIVE = (PE.A <= 0)
+        AND(N_NEGATIVE, N_NEGATIVE, DREG_PE);// limit to PE cells
+
+        WHERE(N_NEGATIVE);
+        mov(A, F);                           // PE.A = 0 where non-positive
+    scamp5_kernel_end();
+
+    scamp5_load_in(F, I_bias);
+
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        add(A, A, F);                        // PE.A += I_bias
+    scamp5_kernel_end();
+}
+
+
+// ---------------------------------------------------------------------------
+// stage_lif_neg   (Leaky Integrate & Fire ganglion neuron)
+//
+//   One Euler step:
+//       V_LIF <- V_LIF + p1 * I_gang - p2 * |V_LIF - u_rest|
+//       spike := (V_LIF > U_thresh)
+//       if spike: V_LIF -= U_thresh   (subtract-threshold reset)
+//
+//   STATE TOUCHED:
+//     STO2.D (V_LIF / MEMBRANE_STO2)  : read at start, rewritten at end
+//     PE.A,B,C,D,E,F                  : all clobbered as scratch
+//     DREG S4 (FIRING)                : raw spike flag (transient)
+//     DREG S5 (FIRING_AND_IS_PE)      : spike map restricted to PE cells;
+//                                        held until the display block reads it
+//
+//   On entry: PE.A = I_gang (output of stage_nonlinearity_N_pos).
+//   On exit : PE.A = post-reset V_LIF ; STO2.D updated; S5 = spike map.
+// ---------------------------------------------------------------------------
+void stage_lif_neg()
+{
+    if (!compute_LIF) return;
+
+    // ---- PE.C := p1 * PE.A  (MAC with multiplicand in A, accumulator in C)
+    // No b_0 = 0 prefix here: this is a direct gain multiplication, not an
+    // IIR LPF. p1 is supplied with the desired weight directly.
+    scamp5_load_in(F, 0);
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        mov(C, F);                           // PE.C = 0 (accumulator)
+    scamp5_kernel_end();
+
+    {
+        int bit = 1 << (p1.no_bits - 1);
+        while (bit)
+        {
+            if (bit & p1.value)
+            {
+                scamp5_kernel_begin();
+                add(C, C, A);
+                diva(A, E, F);
+                scamp5_kernel_end();
+            }
+            else
+            {
+                scamp5_kernel_begin();
+                diva(A, E, F);
+                scamp5_kernel_end();
+            }
+            bit >>= 1;
+        }
+    }
+
+    scamp5_kernel_begin();
+        mov(A, C);                           // PE.A = p1 * I_gang
+    scamp5_kernel_end();
+
+    // ---- PE.B := V_LIF  (load from STO2.D via south neighbor) ----------
+    scamp5_kernel_begin();
+        WHERE(DREG_STO2);
+        bus(NEWS, MEMBRANE_STO2);            // STO2.NEWS = -STO2.D + offset
+
+        WHERE(DREG_PE);
+        bus(B, XS);                          // PE.B = STO2.D = V_LIF
+    scamp5_kernel_end();
+
+    // ---- PE.C := |V_LIF - u_rest|  (uses PE.F as temp) -----------------
+    scamp5_load_in(F, u_rest);
+    scamp5_kernel_begin();
+        sub(C, B, F);                        // PE.C = V_LIF - u_rest
+        mov(F, C);
+        abs(F, F);                           // PE.F = |V_LIF - u_rest|
+
+        WHERE(DREG_PE);
+        mov(C, F);                           // PE.C = |V_LIF - u_rest|
+    scamp5_kernel_end();
+
+    // ---- PE.D := p2 * |V_LIF - u_rest|  (MAC: multiplicand C, accumulator D)
+    scamp5_load_in(F, 0);
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        mov(D, F);                           // PE.D = 0
+    scamp5_kernel_end();
+
+    {
+        int bit = 1 << (p2.no_bits - 1);
+        while (bit)
+        {
+            if (bit & p2.value)
+            {
+                scamp5_kernel_begin();
+                add(D, D, C);
+                diva(C, E, F);
+                scamp5_kernel_end();
+            }
+            else
+            {
+                scamp5_kernel_begin();
+                diva(C, E, F);
+                scamp5_kernel_end();
+            }
+            bit >>= 1;
+        }
+    }
+
+    // ---- Combine: V_LIF_new = V_LIF + p1*I_gang - p2 * |V_LIF - u_rest| --
+    // PE.A : p1 * I_gang
+    // PE.B : V_LIF
+    // PE.D : p2 * |V_LIF - u_rest|
+    scamp5_kernel_begin();
+        add(A, A, B);                        // PE.A = p1*I_gang + V_LIF
+        sub(A, A, D);                        // PE.A = V_LIF_new
+    scamp5_kernel_end();
+
+    // ---- Threshold + subtract-threshold reset --------------------------
+    scamp5_load_in(F, U_thresh);
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        sub(B, A, F);                                       // PE.B = V_LIF_new - threshold
+
+        where(B);                                           // FLAG = (PE.B > 0)
+        MOV(FIRING, FLAG);                                  // S4 = raw spike flag
+        AND(FIRING_NEG_AND_IS_PE, FIRING, DREG_PE);         // S6 = spike map at PEs
+
+        WHERE(FIRING_NEG_AND_IS_PE);
+        mov(A, B);                                          // V_LIF -= threshold on spike
+    scamp5_kernel_end();
+
+    // ---- Persist new V_LIF back to STO2.D ------------------------------
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+        bus(NEWS, A);                                  // PE.NEWS = -PE.A + offset
+
+        WHERE(DREG_STO2);
+        bus(MEMBRANE_NEG_STO2, XN);                    // STO2.E := PE.A
+    scamp5_kernel_end();
+}
+
+inline void move_LIF_for_displays()
+{
+    scamp5_kernel_begin();
+        WHERE(DREG_PE);
+            // move the OFF events to B 
+            mov(B, A);
+
+        // restore the map from ON to A        
+        WHERE(DREG_STO2);
+            bus(NEWS, MEMBRANE_STO2);   // take the membrane from STO2.D
+
+        WHERE(DREG_PE);
+            bus(A, XS);                 // move it to PE.A
+    scamp5_kernel_end();
+
+}
+
 
 
 // ===========================================================================
@@ -1458,7 +1829,6 @@ inline void output_displays(const gui_displays& dpy)
     // when you want to inspect a specific AREG.
 }
 
-
 // ===========================================================================
 // FRAME STATISTICS
 // ===========================================================================
@@ -1518,8 +1888,19 @@ int main()
 
         // Ganglion encoding
         stage_hpf2();                // T_2 HPF on the I_OPL stream
-        stage_nonlinearity_N();      // max(0, x) + I_bias
-        stage_lif();                 // LIF integrator + spike threshold
+
+
+        store_I_bip();
+
+        stage_nonlinearity_N_pos();      // max(0, x) + I_bias
+        stage_lif_pos();                 // LIF integrator + spike threshold
+
+        restore_I_bip_and_prepare();
+
+        stage_nonlinearity_N_neg();
+        stage_lif_neg();
+
+
 
         first_pass = false;
 
