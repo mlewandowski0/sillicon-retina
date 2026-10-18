@@ -156,7 +156,7 @@ The recording below shows the retina running live on the SCAMP-5 chip. Left: the
 </p>
 
 > [!NOTE]
-> **TODO:** we will add recordings from the CVPR 2026 demo app, which displays ON and OFF events simultaneously (red/blue). Until then, see our workshop demo page: [Implementation of a Retina Model on the SCAMP-5 Vision Sensor](https://onsensor-vision.github.io/html/Implementation_of_a_Retina_Model_on_the_SCAMP-5_Vision_Sensor.html) (On-Sensor Vision Workshop, CVPR 2026).
+> **TODO:** we will add recordings from the CVPR 2026 demo app, which displays ON and OFF events simultaneously (red/blue). That demo app was presented on CVPR Workshop [Implementation of a Retina Model on the SCAMP-5 Vision Sensor](https://onsensor-vision.github.io/html/Implementation_of_a_Retina_Model_on_the_SCAMP-5_Vision_Sensor.html) (On-Sensor Vision Workshop, CVPR 2026).
 
 Real on-chip outputs over time (I<sub>OPL</sub>, V<sub>LIF</sub> and the spike map):
 
