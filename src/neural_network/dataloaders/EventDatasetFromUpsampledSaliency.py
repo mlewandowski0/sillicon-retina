@@ -41,6 +41,7 @@ class EventDatasetFromUpsampledSaliency(Dataset):
         self.verbose = verbose
         self.prediction_video_name = prediction_video_name
         self.save_xypt = save_xypt
+        self._recomputed = set()  # folders regenerated in this process (force_recomputing applies once per clip)
         
         self.contrast_threshold_neg = preprocessing_params.get("contrast_threshold_neg", contrast_threshold_neg)
         self.contrast_threshold_pos = preprocessing_params.get("contrast_threshold_pos", contrast_threshold_pos)
@@ -153,7 +154,7 @@ class EventDatasetFromUpsampledSaliency(Dataset):
         have_cache = (os.path.exists(paths['grids'])
                       and os.path.exists(paths['outputs']) and have_xypt_cache)
 
-        if have_cache and not self.force_recomputing:
+        if have_cache and (not self.force_recomputing or folder in self._recomputed):
             # fast path: mmapped reads
 
             # (T, B, H, W), dtype=np.float16
@@ -332,6 +333,8 @@ class EventDatasetFromUpsampledSaliency(Dataset):
                       "t" : None,
                       "p" : None}
 
+
+        self._recomputed.add(folder)
 
         # Return in the same shapes/types you expect
         result = {

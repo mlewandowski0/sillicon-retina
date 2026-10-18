@@ -260,7 +260,7 @@ if __name__ == "__main__":
                          hid1=config["hid1"],
                          ks1=config["ks1"],
                          add_bn=config["add_bn"],
-                         out_sigmoid=config["out_sigmoid"]).to(device)
+                         out_mode=config.get("out_mode", "sigmoid" if config.get("out_sigmoid", True) else "identity")).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
 
 

@@ -3,16 +3,19 @@ import os, json, subprocess, sys, time
 from pathlib import Path
 
 OUT = "src/neural_network/data/saliency_dataset_upsampled"
+IN = "src/neural_network/data/saliency_dataset_truncated"
+# forwarded to the worker; unset = optical-flow upsampling, e.g. UPSAMPLE_FPS=200 = fixed-rate upsampling
+FIXED_FPS = int(os.environ.get("UPSAMPLE_FPS", "0"))
 
 def is_done(i: int) -> bool:
     folder = os.path.join(OUT, f"video_{i:05d}")
     if not os.path.isdir(folder): return False
     if not os.path.exists(os.path.join(folder, "params.json")): return False
-    return os.path.exists(os.path.join(folder, "video_upsampled_using_optical_flow.mp4"))
+    video = f"video_upsampled_fps_eq_{FIXED_FPS}.mp4" if FIXED_FPS else "video_upsampled_using_optical_flow.mp4"
+    return os.path.exists(os.path.join(folder, video))
 
 def find_next_start():
-    meta = json.load(open(os.path.join(OUT, "metadata.json")))
-    n = int(meta["number_of_videos"])
+    n = len([d for d in os.listdir(IN) if os.path.isdir(os.path.join(IN, d))])
     for i in range(n):
         if not is_done(i):
             return i, n
@@ -25,11 +28,6 @@ def run_pass(start_idx: int) -> int:
     return subprocess.call([sys.executable, "-m", "src.neural_network.help_scripts.upsample_worker_gpu"], env=env)
 
 def main():
-    meta_path = os.path.join(OUT, "metadata.json")
-    if not os.path.exists(meta_path):
-        print("metadata.json missing; run your upsampling once to create it.")
-        sys.exit(1)
-
     try:
         while True:
             i, n = find_next_start()

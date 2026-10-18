@@ -1,2 +1,0 @@
-nohup: ignoring input
-runners/run_nov19.sh: 1: python: not found

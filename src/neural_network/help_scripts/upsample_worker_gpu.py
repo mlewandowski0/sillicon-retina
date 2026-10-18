@@ -72,11 +72,15 @@ def main():
         input_video="input.AVI", output_video="maps.mp4", suffix=None
     )
 
+    # UPSAMPLE_FPS unset: optical-flow-adaptive upsampling -> video_upsampled_using_optical_flow.mp4 (DVS loaders)
+    # UPSAMPLE_FPS=200:    fixed-rate upsampling           -> video_upsampled_fps_eq_200.mp4 (retina loaders)
+    fixed_fps = int(os.environ.get("UPSAMPLE_FPS", "0"))
+
     upsampling_ds_val = VideoDatasetUpsampling(
         video_val,
         model_path=os.path.join("models","film_net","Style","saved_model"),
-        upsample_to_events=True,
-        new_framerate=False,
+        upsample_to_events=(fixed_fps == 0),
+        new_framerate=fixed_fps if fixed_fps else False,
         output_name="maps",
         return_optical_flows=False,
         debug=False

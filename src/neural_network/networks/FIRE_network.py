@@ -121,7 +121,7 @@ if __name__ == "__main__":
     input_channels = 5
     resolution = (180, 240)
 
-    model = FIRE_network(in_ch=input_channels, hid1=16, ks1=3, add_bn=False, out_sigmoid=False)
+    model = FIRE_network(in_ch=input_channels, hid1=16, ks1=3, add_bn=False, out_mode="identity")
     model.reset(input_shape=resolution, batch_size=batch_size)
 
     for _ in range(5):

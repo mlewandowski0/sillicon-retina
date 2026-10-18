@@ -104,9 +104,8 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
     def _ensure_simulator(self):
         if self.simulator is None:
-            self.simulator = SiliconRetinaFloatCUDAOnline(silicon_retina_config=self.config,
-                                 height=self.height,
-                                 width=self.width)
+            self.config.H, self.config.W = self.height, self.width
+            self.simulator = SiliconRetinaFloatCUDAOnline(silicon_retina_config=self.config)
 
     def __len__(self):
         return len(self.data_files)
@@ -350,7 +349,7 @@ class SiliconRetinaEventDatasetFromUpsampled(Dataset):
 
         # Return in the same shapes/types you expect
         result = {
-            "frames": raw_frames,                                 # np.uint8
+            "frames": raw_frames.astype(np.float32),              # float32 in [0, 1], as on the cached path
             "events": {
                 "x": x.to("cpu"),
                 "y": y.to("cpu"),

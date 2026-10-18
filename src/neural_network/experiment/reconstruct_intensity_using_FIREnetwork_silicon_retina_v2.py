@@ -281,7 +281,7 @@ if __name__ == "__main__":
                          hid1=config["hid1"],
                          ks1=config["ks1"],
                          add_bn=config["add_bn"],
-                         out_sigmoid=config["out_sigmoid"]).to(device)
+                         out_mode=config.get("out_mode", "sigmoid" if config.get("out_sigmoid", True) else "identity")).to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
 
     # Silicon Retina Dataset parameters
@@ -518,6 +518,6 @@ if __name__ == "__main__":
     print(f"Best validation loss: {best_val_loss:.4f}")
     
     if check_dataset:
-        write_optuna_result(result_file, best_value=best_val_loss, pixel_occupancy=per_pixel_occupany, grid_occupancy=grids_occupancy)
+        write_optuna_result(result_file, best_value=best_val_loss, total_pixel_occupancy=per_pixel_occupany, total_grid_occupancy=grids_occupancy)
     else:
-        write_optuna_result(result_file, best_value=best_val_loss, pixel_occupancy=-1, grid_occupancy=-1)
+        write_optuna_result(result_file, best_value=best_val_loss, total_pixel_occupancy=-1, total_grid_occupancy=-1)

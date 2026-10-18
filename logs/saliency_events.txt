@@ -1,104 +1,0 @@
-wandb: Currently logged in as: mlewand (mlewand7) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
-wandb: Tracking run with wandb version 0.21.0
-wandb: Run data is saved locally in /home/p27335ml/Desktop/PROJS/sillicon-retina/wandb/run-20251106_110148-yi6ks95l
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run FIREnetwork_20251106_110148
-wandb: ⭐️ View project at https://wandb.ai/mlewand7/e2vid-saliency
-wandb: 🚀 View run at https://wandb.ai/mlewand7/e2vid-saliency/runs/yi6ks95l
-FIRENetwork Training on Saliency Dataset
-================================
-device:  cuda
-Model has 130785 parameters
-
-Configuration:
-  num_bins: 5
-  num_prev_images: 3
-  burn_in_steps: 10
-  sequence_length: 30
-  hid1: 32
-  ks1: 3
-  add_bn: False
-  out_mode: density
-  use_amp: True
-  amp_dtype: fp16
-  force_recomputing: False
-  log_input: False
-  data_root: src/neural_network/data/saliency_dataset_upsampled
-  cache_folder: src/neural_network/data/saliency_dataset_upsampled
-  train_limit: 20
-  val_limit: 10
-  skip_frames: 1
-  batch_size: 2
-  num_epochs: 200
-  learning_rate: 0.0001
-  weight_decay: 0.0001
-  lr_step_size: 10
-  lr_gamma: 0.9
-  prefetch_factor: 5
-  dropout_rate: 0.2
-  augment: True
-  skip_type: sum
-  debug_save: True
-  debug_iters: 500
-  debug_folder: src/neural_network/debug/test_FIRE_events_saliency_length=30_burnin=10_no_log_basic_se_reg_events
-  use_lpips: True
-  checkpoint_dir: src/neural_network/checkpoints/test_FIRE_events_saliency_length=30_burnin=10_no_log_basic_se_reg_events
-  save_every: 5
-  keep_last_n_checkpoints: 5
-  num_workers: 10
-  use_wandb: True
-  use_upsampled_from_OF: False
-  verbose: False
-  0%|          | 0/20 [00:00<?, ?it/s]/home/p27335ml/Desktop/PROJS/sillicon-retina/src/neural_network/dataloaders/EventDatasetFromUpsampledSaliency.py:162: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:203.)
-  event_grids = torch.as_tensor(grids_np)
-  5%|▌         | 1/20 [00:00<00:08,  2.30it/s] 10%|█         | 2/20 [00:00<00:07,  2.52it/s] 15%|█▌        | 3/20 [00:01<00:06,  2.48it/s] 20%|██        | 4/20 [00:01<00:06,  2.39it/s] 25%|██▌       | 5/20 [00:02<00:06,  2.31it/s] 30%|███       | 6/20 [00:02<00:06,  2.27it/s] 35%|███▌      | 7/20 [00:02<00:04,  2.76it/s] 40%|████      | 8/20 [00:03<00:04,  2.48it/s] 45%|████▌     | 9/20 [00:03<00:05,  2.13it/s] 50%|█████     | 10/20 [00:04<00:04,  2.40it/s] 55%|█████▌    | 11/20 [00:04<00:03,  2.52it/s] 60%|██████    | 12/20 [00:05<00:03,  2.35it/s] 65%|██████▌   | 13/20 [00:05<00:03,  2.13it/s] 70%|███████   | 14/20 [00:06<00:03,  1.98it/s] 75%|███████▌  | 15/20 [00:06<00:02,  1.99it/s] 80%|████████  | 16/20 [00:07<00:01,  2.08it/s] 85%|████████▌ | 17/20 [00:07<00:01,  2.31it/s] 90%|█████████ | 18/20 [00:07<00:00,  2.21it/s] 95%|█████████▌| 19/20 [00:08<00:00,  2.66it/s]100%|██████████| 20/20 [00:08<00:00,  2.91it/s]100%|██████████| 20/20 [00:08<00:00,  2.38it/s]
-Found 20 valid sequences out of 20 items
-  0%|          | 0/10 [00:00<?, ?it/s] 10%|█         | 1/10 [00:00<00:03,  2.57it/s] 20%|██        | 2/10 [00:00<00:02,  2.73it/s] 30%|███       | 3/10 [00:01<00:02,  2.66it/s] 40%|████      | 4/10 [00:01<00:02,  2.56it/s] 50%|█████     | 5/10 [00:01<00:02,  2.47it/s] 60%|██████    | 6/10 [00:02<00:01,  2.43it/s] 70%|███████   | 7/10 [00:02<00:01,  2.95it/s] 80%|████████  | 8/10 [00:03<00:00,  2.64it/s] 90%|█████████ | 9/10 [00:03<00:00,  2.25it/s]100%|██████████| 10/10 [00:03<00:00,  2.54it/s]100%|██████████| 10/10 [00:03<00:00,  2.55it/s]
-Found 10 valid sequences out of 10 items
-Train dataset: 20 sequences
-Val dataset: 10 sequences
-
-==================================================
-Epoch 1/200
-Learning Rate: 0.000100
-Epoch 1/200:   0%|          | 0/10 [00:00<?, ?it/s]burn in steps 10
-Epoch 1/200:   0%|          | 0/10 [00:01<?, ?it/s]
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/src/neural_network/experiment/saliency_using_FIREnetwork_events_v2.py", line 392, in <module>
-    train_loss = train_epoch(
-                 ^^^^^^^^^^^^
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/src/neural_network/experiment/saliency_using_FIREnetwork_events_v2.py", line 60, in train_epoch
-    for batch_idx, batch in enumerate(pbar):
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/tqdm/std.py", line 1181, in __iter__
-    for obj in iterable:
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 733, in __next__
-    data = self._next_data()
-           ^^^^^^^^^^^^^^^^^
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1515, in _next_data
-    return self._process_data(data, worker_id)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1550, in _process_data
-    data.reraise()
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/torch/_utils.py", line 750, in reraise
-    raise exception
-IndexError: Caught IndexError in DataLoader worker process 0.
-Original Traceback (most recent call last):
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/worker.py", line 349, in _worker_loop
-    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/.venv/lib/python3.12/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-            ~~~~~~~~~~~~^^^^^
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/src/neural_network/dataloaders/SaliencyDatasetWrapper.py", line 219, in __getitem__
-    frame_sequence,grid_sequence, flow_sequence = self._augment_sequence(frame_sequence, grid_sequence, flows_sequence)
-                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/p27335ml/Desktop/PROJS/sillicon-retina/src/neural_network/dataloaders/SaliencyDatasetWrapper.py", line 44, in _augment_sequence
-    frames = frames[ :, :, ::-1].copy()
-             ~~~~~~^^^^^^^^^^^^^
-IndexError: too many indices for array: array is 2-dimensional, but 3 were indexed
-
-[1;34mwandb[0m: 
-[1;34mwandb[0m: 🚀 View run [33mFIREnetwork_20251106_110148[0m at: [34mhttps://wandb.ai/mlewand7/e2vid-saliency/runs/yi6ks95l[0m
-[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20251106_110148-yi6ks95l/logs[0m

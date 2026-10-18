@@ -517,6 +517,7 @@ if __name__ == "__main__":
     original_images = video_ds[idx]
     x = upsampling_ds[idx]
     images, images_per_patches, timestamps, optical_flows = x
+    os.makedirs(os.path.join("src", "prototyping"), exist_ok=True)
     np.savez_compressed(os.path.join("src", "prototyping", "opticalflow.npz"), optical_flows=optical_flows)
 
     raw_images = []

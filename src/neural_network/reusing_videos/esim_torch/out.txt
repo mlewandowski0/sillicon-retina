@@ -1,3 +1,0 @@
-Obtaining file:///home/mlew/Desktop/PROJS/sillicon-retina/src/neural_network/reusing_videos/esim_torch
-  Installing build dependencies: started
-  Installing build dependencies: finished with status 'canceled'

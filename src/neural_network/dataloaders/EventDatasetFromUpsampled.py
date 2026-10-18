@@ -67,7 +67,7 @@ class EventDatasetFromUpsampled(Dataset):
 
         # Cache filename builder bound with thresholds
         self._mk_paths = lambda folder: _mk_cache_paths_events(
-            folder, B, self.contrast_threshold_neg, self.contrast_threshold_pos
+            folder, self.B, self.contrast_threshold_neg, self.contrast_threshold_pos
         )
 
     def __len__(self):
@@ -200,7 +200,7 @@ class EventDatasetFromUpsampled(Dataset):
             # H, W = frames.shape[-2], frames.shape[-1]
             # xk = xk.clamp_(0, W-1); yk = yk.clamp_(0, H-1)
 
-            g = events_to_voxels(xk, yk, tk, pk, t0, t1)
+            g = events_to_voxels(xk, yk, tk, pk, t0, t1, H=frames.shape[1], W=frames.shape[2], B=self.B)
             grids.append(g)
 
         event_grids = torch.stack(grids, dim=0)
@@ -217,7 +217,7 @@ class EventDatasetFromUpsampled(Dataset):
 
         # Return in the same shapes/types you expect
         result = {
-            "frames": raw_frames,                                 # np.uint8
+            "frames": raw_frames.astype(np.float32),              # float32 in [0, 1], as on the cached path
             "events": {
                 "x": x.to("cpu"),
                 "y": y.to("cpu"),

@@ -133,7 +133,7 @@ if __name__ == "__main__":
     
     os.makedirs(out_dir, exist_ok=True)
     
-    for i in tqdm(range(how_many_visualizations)):
+    for i in tqdm(range(min(how_many_visualizations, len(train_base)))):
         
         datapoint = train_base[i]
         print(datapoint.keys())

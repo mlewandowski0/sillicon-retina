@@ -1,36 +1,90 @@
-prototyping/dataset/*
-prototyping/output/*
+# ---------------------------------------------------------------------------
+# Local-only material (kept on disk, never published)
+# ---------------------------------------------------------------------------
+_local_archive/
+.claude/settings.local.json
+
+# ---------------------------------------------------------------------------
+# Python / environments
+# ---------------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.egg-info/
+.venv
+sillicon-retina-env
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# IDE / OS files
+# ---------------------------------------------------------------------------
+.idea/
+.vs/
+.DS_Store
+~$*
+.$*
+*.bkp
+*.dtmp
+
+# ---------------------------------------------------------------------------
+# Build artefacts
+# ---------------------------------------------------------------------------
+build/
+*.obj
+*.ilk
+*.pdb
+*.idb
+*.tlog
+*.ipch
+src/scamp_code/Debug/
+src/scamp_code/Release/
+src/silicon_retina_cuda_kernel/main
+src/silicon_retina_cuda_kernel/main_online
+src/silicon_retina_cuda_kernel/test
+
+# ---------------------------------------------------------------------------
+# Datasets, model weights, checkpoints (see README "Data and models")
+# ---------------------------------------------------------------------------
+/data/
 src/neural_network/data
+src/neural_network/checkpoints/
 src/neural_network/debug/*
 src/neural_network/dataloaders/debug/*
 src/neural_network/dataloaders/caltech101
 src/neural_network/dataloaders/N-Caltech101
-sillicon-retina-env
-src/sillicon_retina_python_simulation/datasets/*
-.venv
+src/silicon_retina_python_simulation/datasets/
 src/silicon_retina_cuda_kernel/frames/*
 src/silicon_retina_cuda_kernel/out/*
-wandb/*
-
-# reference/*
-
-
-*.pyc
-*.pth
-*.sillicon_retina_python_simulation
 models/*
+*.pth
 dataset_packed
 silicon_retina_grids
 src/neural_network/reusing_videos/upsampling/input/frames
 src/neural_network/reusing_videos/upsampling/output
-silicon_retina_grids.zip
-dataset_packed.zip
-small_batch.zip
-visualizations.zip
-to_cluster.zip
+*.zip
 
+# ---------------------------------------------------------------------------
+# Run outputs written to the working directory (repo root) by the experiments
+# ---------------------------------------------------------------------------
+wandb/*
+tb_prof/
+synthetic_test_out/
+logs/
+*.log
+nohup.out
+/result.json
+/optuna_result.json
+/best_optuna_params.json
+/temp_config_trial_*.json
+/temp_result_trial_*.json
+/retina_sweep.db
+/retina_bo.sqlite3
+/events_vis_*.mp4
+/video_stiched.mp4
+/videoDatasetUpsampling*.mp4
+src/neural_network/experiment/BO_configs_started=*
 src/neural_network/configs/occupancy_sweeps/visualizations
 paper-figures/scamp5_videos
 paper-figures/visualization_figures/*
-
-data/
+!paper-figures/visualization_figures/*.ipynb
+!paper-figures/visualization_figures/*.py
+uploaded/

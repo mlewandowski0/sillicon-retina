@@ -96,8 +96,8 @@ for b in range(bin_ids.max() + 1):
     train_indices.extend(idx_in_bin[:split_point])
     val_indices.extend(idx_in_bin[split_point:])
     
-train_indices = np.array(train_indices)
-val_indices = np.array(val_indices)
+train_indices = np.array(train_indices, dtype=int)
+val_indices = np.array(val_indices, dtype=int)
 
 # shuffle final lists for good measure
 rng.shuffle(train_indices)
@@ -120,6 +120,8 @@ plt.close()
 
 copy_split(folders, train_indices, output_root_train)
 copy_split(folders, val_indices,   output_root_val)
+for split_root in (output_root_train, output_root_val):
+    shutil.copy(os.path.join(dataset_root_path, "metadata.json"), split_root)
 
 split_info = {
     "train": [Path(folders[i]).name for i in train_indices],
